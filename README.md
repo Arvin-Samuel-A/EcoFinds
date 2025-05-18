@@ -114,5 +114,5 @@ For any questions or support, please open an issue or contact the project mainta
 
 ## Video
 
-<img src="https://github.com/Arvin-Samuel-A/EcoFinds/blob/main/Demo.jpeg">
+<a href="https://youtu.be/9PU2wvvAdlw"><img src="https://github.com/Arvin-Samuel-A/EcoFinds/blob/main/Demo.jpeg"></a>
 https://youtu.be/9PU2wvvAdlw
