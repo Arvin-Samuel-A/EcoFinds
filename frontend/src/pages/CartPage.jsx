@@ -266,14 +266,12 @@ const CartPage = () => {
             {group !== 'All' && <h2 className="group-title">{group}</h2>}
             <div className="group-items">
               {groupedItems[group].map((item) => (
-                <div key={item.id} className="cart-item-card">
+                <div key={item.id} className="listing-item-card">
                   <img src={item.image} alt={item.name} className="product-image" />
-                  <div className="item-details">
-                    <h3>{item.name}</h3>
-                    <p><strong>Price:</strong> ${item.price.toFixed(2)}</p>
-                    <p><strong>Category:</strong> {item.category}</p>
-                    <p><strong>Seller:</strong> {item.seller}</p>
-                  </div>
+                  <h3>{item.name}</h3>
+                  <p>Price: ${item.price.toFixed(2)}</p>
+                  <p>Category: {item.category}</p>
+                  <p>Seller: {item.seller}</p>
                 </div>
               ))}
             </div>

@@ -21,7 +21,6 @@ function App() {
         <nav className="main-nav">
           <a href="/listing" className="nav-link">Listings</a>
           <a href="/addproduct" className="nav-link">Add Products</a>
-          <a href="/cart" className="nav-link">Cart</a>
         </nav>
         <div className="auth-buttons">
           <a href="/cart" className="cart-icon">
@@ -31,6 +30,7 @@ function App() {
               <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
             </svg>
           </a>
+          <a href="/profile"><button className="secondary-btn">Profile</button></a>
           <a href="/login"><button className="secondary-btn">Log In</button></a>
           <a href="/login"><button className="primary-btn">Sign Up</button></a>
         </div>
