@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Camera, Edit2, LogOut } from 'lucide-react';
+import { Camera, Edit2, LogOut, User, Mail, MapPin, FileText, Package, ShoppingBag } from 'lucide-react';
 import axios from 'axios';
 import '../styles/ProfilePage.css';
 
@@ -96,7 +96,6 @@ const ProfilePage = () => {
         const formData = new FormData();
         formData.append('profileImage', profileImage);
         
-        // This would be a separate endpoint for image upload
         await axios.post('/api/users/me/profile-image', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
@@ -107,7 +106,7 @@ const ProfilePage = () => {
       
       setUser(response.data);
       setIsEditing(false);
-      // Show success message
+      // Show success notification - could be implemented with a toast system
     } catch (err) {
       setError(err.message || 'Failed to update profile');
     }
@@ -164,11 +163,15 @@ const ProfilePage = () => {
 
   return (
     <div className="profile-container">
+      {/* Background Elements */}
       <div className="grid-pattern"></div>
       <div className="gradient-orbs">
         <div className="orb orb-1"></div>
         <div className="orb orb-2"></div>
+        <div className="orb orb-3"></div>
+        <div className="orb orb-4"></div>
       </div>
+      <div className="eco-leaves"></div>
       
       <div className="profile-content">
         <header className="app-header">
@@ -176,140 +179,231 @@ const ProfilePage = () => {
             <div className="logo-text">EcoFinds</div>
             <div className="logo-accent"></div>
           </div>
-          <button className="logout-btn" onClick={handleLogout}>
-            <LogOut size={18} />
+          <button className="logout-btn" onClick={handleLogout} aria-label="Logout">
+            <LogOut size={20} />
+            <span>Logout</span>
           </button>
         </header>
 
-        <div className="profile-card">
-          <div className="profile-header">
-            <h1>User Profile</h1>
-            <div className="neon-underline"></div>
-          </div>
+        <div className="profile-layout">
+          <div className="profile-card">
+            <div className="card-header">
+              <h1>User Profile</h1>
+              <div className="neon-underline"></div>
+            </div>
 
-          <div className="profile-body">
-            <div className="profile-image-container">
-              <div className="profile-image">
-                {imagePreview ? (
-                  <img src={imagePreview} alt="Profile preview" />
-                ) : user?.profileImage ? (
-                  <img src={user.profileImage} alt={user.name} />
-                ) : (
-                  <div className="default-avatar">
-                    <span>{user?.name?.charAt(0) || '?'}</span>
-                  </div>
-                )}
-                {isEditing && (
-                  <label className="change-photo-btn">
-                    <Camera size={20} />
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleImageChange} 
-                      hidden 
-                    />
-                  </label>
+            <div className="profile-body">
+              <div className="profile-image-container">
+                <div className="profile-image">
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Profile preview" />
+                  ) : user?.profileImage ? (
+                    <img src={user.profileImage} alt={user.name} />
+                  ) : (
+                    <div className="default-avatar">
+                      <span>{user?.name?.charAt(0) || '?'}</span>
+                    </div>
+                  )}
+                  {isEditing && (
+                    <label className="change-photo-btn">
+                      <Camera size={24} />
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleImageChange} 
+                        hidden 
+                      />
+                    </label>
+                  )}
+                </div>
+                {!isEditing && (
+                  <button className="edit-profile-btn" onClick={toggleEdit}>
+                    <Edit2 size={18} />
+                    Edit Profile
+                  </button>
                 )}
               </div>
-              {!isEditing && (
-                <button className="edit-profile-btn" onClick={toggleEdit}>
-                  <Edit2 size={16} />
-                  Edit Profile
-                </button>
-              )}
-            </div>
 
-            <div className="profile-details">
-              {isEditing ? (
-                <form onSubmit={handleSubmit}>
-                  <div className="form-group">
-                    <label htmlFor="name">Name</label>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      value={formData.name}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
+              <div className="profile-details">
+                {isEditing ? (
+                  <form onSubmit={handleSubmit}>
+                    <div className="form-group">
+                      <label htmlFor="name">Name</label>
+                      <div className="input-wrapper">
+                        <User size={18} className="input-icon" />
+                        <input
+                          type="text"
+                          id="name"
+                          name="name"
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          required
+                        />
+                      </div>
+                    </div>
 
-                  <div className="form-group">
-                    <label htmlFor="email">Email</label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      required
-                    />
-                  </div>
+                    <div className="form-group">
+                      <label htmlFor="email">Email</label>
+                      <div className="input-wrapper">
+                        <Mail size={18} className="input-icon" />
+                        <input
+                          type="email"
+                          id="email"
+                          name="email"
+                          value={formData.email}
+                          onChange={handleInputChange}
+                          required
+                        />
+                      </div>
+                    </div>
 
-                  <div className="form-group">
-                    <label htmlFor="bio">Bio</label>
-                    <textarea
-                      id="bio"
-                      name="bio"
-                      value={formData.bio}
-                      onChange={handleInputChange}
-                      rows="3"
-                    ></textarea>
-                  </div>
+                    <div className="form-group">
+                      <label htmlFor="bio">Bio</label>
+                      <div className="input-wrapper textarea-wrapper">
+                        <FileText size={18} className="input-icon textarea-icon" />
+                        <textarea
+                          id="bio"
+                          name="bio"
+                          value={formData.bio}
+                          onChange={handleInputChange}
+                          rows="4"
+                        ></textarea>
+                      </div>
+                    </div>
 
-                  <div className="form-group">
-                    <label htmlFor="location">Location</label>
-                    <input
-                      type="text"
-                      id="location"
-                      name="location"
-                      value={formData.location}
-                      onChange={handleInputChange}
-                    />
-                  </div>
+                    <div className="form-group">
+                      <label htmlFor="location">Location</label>
+                      <div className="input-wrapper">
+                        <MapPin size={18} className="input-icon" />
+                        <input
+                          type="text"
+                          id="location"
+                          name="location"
+                          value={formData.location}
+                          onChange={handleInputChange}
+                        />
+                      </div>
+                    </div>
 
-                  <div className="form-actions">
-                    <button type="button" className="cancel-btn" onClick={toggleEdit}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="save-btn">
-                      Save Changes
-                    </button>
+                    <div className="form-actions">
+                      <button type="button" className="cancel-btn" onClick={toggleEdit}>
+                        Cancel
+                      </button>
+                      <button type="submit" className="save-btn">
+                        <span>Save Changes</span>
+                        <div className="btn-glow"></div>
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="user-info">
+                    <div className="info-card">
+                      <div className="info-item">
+                        <div className="info-icon">
+                          <User size={20} />
+                        </div>
+                        <div className="info-content">
+                          <span className="info-label">Name</span>
+                          <span className="info-value">{user?.name || 'Not set'}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="info-item">
+                        <div className="info-icon">
+                          <Mail size={20} />
+                        </div>
+                        <div className="info-content">
+                          <span className="info-label">Email</span>
+                          <span className="info-value">{user?.email || 'Not set'}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="info-item">
+                        <div className="info-icon">
+                          <FileText size={20} />
+                        </div>
+                        <div className="info-content">
+                          <span className="info-label">Bio</span>
+                          <span className="info-value bio-text">{user?.bio || 'Not set'}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="info-item">
+                        <div className="info-icon">
+                          <MapPin size={20} />
+                        </div>
+                        <div className="info-content">
+                          <span className="info-label">Location</span>
+                          <span className="info-value">{user?.location || 'Not set'}</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </form>
-              ) : (
-                <div className="user-info">
-                  <div className="info-item">
-                    <span className="info-label">Name</span>
-                    <span className="info-value">{user?.name || 'Not set'}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">Email</span>
-                    <span className="info-value">{user?.email || 'Not set'}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">Bio</span>
-                    <span className="info-value">{user?.bio || 'Not set'}</span>
-                  </div>
-                  <div className="info-item">
-                    <span className="info-label">Location</span>
-                    <span className="info-value">{user?.location || 'Not set'}</span>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="navigation-card">
-          <h2>Navigations</h2>
-          <div className="nav-buttons">
-            <a href="/listings" className="nav-btn">
-              My Listings
-            </a>
-            <a href="/purchases" className="nav-btn">
-              My Purchases
-            </a>
+          <div className="side-panel">
+            <div className="navigation-card">
+              <h2>My Activities</h2>
+              <div className="neon-underline"></div>
+              
+              <div className="nav-buttons">
+                <a href="/listings" className="nav-btn">
+                  <Package size={20} />
+                  <span>My Listings</span>
+                  <div className="btn-glow"></div>
+                </a>
+                <a href="/purchases" className="nav-btn">
+                  <ShoppingBag size={20} />
+                  <span>My Purchases</span>
+                  <div className="btn-glow"></div>
+                </a>
+              </div>
+              
+              <div className="activity-stats">
+                <div className="stat-item">
+                  <div className="stat-value">12</div>
+                  <div className="stat-label">Active Listings</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">8</div>
+                  <div className="stat-label">Items Sold</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">5</div>
+                  <div className="stat-label">Items Purchased</div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="eco-impact-card">
+              <h2>Eco Impact</h2>
+              <div className="neon-underline"></div>
+              
+              <div className="impact-meter">
+                <div className="impact-progress">
+                  <div className="progress-bar" style={{ width: '65%' }}></div>
+                </div>
+                <div className="impact-label">65% Carbon Saved</div>
+              </div>
+              
+              <div className="impact-stats">
+                <div className="impact-item">
+                  <div className="impact-icon tree-icon"></div>
+                  <div className="impact-text">12 Trees Saved</div>
+                </div>
+                <div className="impact-item">
+                  <div className="impact-icon water-icon"></div>
+                  <div className="impact-text">340 Gal Water Saved</div>
+                </div>
+                <div className="impact-item">
+                  <div className="impact-icon waste-icon"></div>
+                  <div className="impact-text">56 lbs Waste Prevented</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>

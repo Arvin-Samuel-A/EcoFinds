@@ -17,11 +17,48 @@ const AuthPage = () => {
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // Handle form submission logic here
-    console.log('Form submitted:', form);
-  };
+  const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  const endpoint = isLogin ? 'http://localhost:6000/api/auth/login' : '/api/auth/register';
+
+  const payload = isLogin
+    ? {
+        email: form.email,
+        password: form.password,
+      }
+    : {
+        name: form.fullName,
+        email: form.email,
+        password: form.password,
+      };
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.message || 'Authentication failed.');
+      return;
+    }
+
+    // Handle token (e.g., save to localStorage, redirect, etc.)
+    localStorage.setItem('authToken', data.token);
+    alert(`${isLogin ? 'Login' : 'Registration'} successful!`);
+    // redirect logic here if needed
+  } catch (error) {
+    console.error('Error during authentication:', error);
+    alert('An unexpected error occurred.');
+  }
+};
+
 
   const toggleAuthMode = () => {
     setIsLogin(!isLogin);
