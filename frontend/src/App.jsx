@@ -4,6 +4,7 @@ import AuthPage from './pages/AuthPage'
 import ProfilePage from './pages/ProfilePage'
 import CartPage from './pages/CartPage'
 import HomePage from './pages/HomePage'
+import AddNewProduct from './pages/AddNewProduct'
 
 function App() {
   return (
@@ -23,7 +24,8 @@ function App() {
         <Route path="/login" element={<AuthPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/cart" element={<CartPage />} />
-      </Routes>
+        <Route path="/addproduct" element={<AddNewProduct />} />
+       </Routes>
       <footer className="home-header2">
         <div className="footer-content">
           <div className="footer-logo">
@@ -37,6 +39,7 @@ function App() {
                 <li><a href="/cart">Cart</a></li>
                 <li><a href="/login">Sign Up</a></li>
                 <li><a href="/login">Log In</a></li>
+                <li><a href="/addproduct">Add Your Products</a></li>
               </ul>
             </div>
             <div className="footer-column">
