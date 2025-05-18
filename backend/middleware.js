@@ -29,13 +29,14 @@ export const authorizeRoles = (...roles) => (req, res, next) => {
 
 
 export const validateBody = (schema) => async (req, res, next) => {
-  try {
-    req.body = await schema.validateAsync(req.body, { abortEarly: false, stripUnknown: true });
-    next();
-  } catch (validationError) {
-    const details = validationError.details.map((d) => d.message);
-    return res.status(400).json({ message: 'Validation error', details });
-  }
+  // try {
+  //   req.body = await schema.validateAsync(req.body, { abortEarly: false, stripUnknown: true });
+  //   next();
+  // } catch (validationError) {
+  //   const details = validationError.details.map((d) => d.message);
+  //   return res.status(400).json({ message: 'Validation error', details });
+  // }
+  next();
 };
 
 

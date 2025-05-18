@@ -25,7 +25,7 @@ export default function Dashboard() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/api/users/me`, {
+      const res = await fetch(`${import.meta.env.REACT_APP_API_URL}/api/users/me`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

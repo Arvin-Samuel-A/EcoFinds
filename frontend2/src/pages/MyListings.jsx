@@ -10,7 +10,7 @@ export default function MyListings() {
 
   const fetchMyListings = async () => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/api/products?seller=true`, {
+      const res = await fetch(`${import.meta.env.REACT_APP_API_URL}/api/products?seller=true`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Failed to load your listings');

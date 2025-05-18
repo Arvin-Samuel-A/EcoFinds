@@ -35,7 +35,7 @@ export default function AddProduct() {
         stock: parseInt(form.stock, 10),
         images: form.imageUrl ? [form.imageUrl] : []
       };
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/api/products`, {
+      const res = await fetch(`${import.meta.env.REACT_APP_API_URL}/api/products`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

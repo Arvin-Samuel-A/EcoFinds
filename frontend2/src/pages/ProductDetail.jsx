@@ -15,7 +15,7 @@ export default function ProductDetail() {
   useEffect(() => {
     async function fetchProduct() {
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL}/api/products/${id}`, {
+        const res = await fetch(`${import.meta.env.REACT_APP_API_URL}/api/products/${id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         if (!res.ok) throw new Error('Failed to load product');
@@ -30,7 +30,7 @@ export default function ProductDetail() {
 
   const handleAddToCart = async () => {
     try {
-      const res = await fetch(`${process.env.REACT_APP_API_URL}/api/cart`, {
+      const res = await fetch(`${import.meta.env.REACT_APP_API_URL}/api/cart`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -14,7 +14,7 @@ export default function ProductFeed() {
   // Fetch products from the API
   const fetchProducts = async () => {
     try {
-      let url = new URL(`${process.env.REACT_APP_API_URL}/api/products`);
+      let url = new URL(`${import.meta.env.REACT_APP_API_URL}/api/products`);
       const params = {};
       if (query) params.search = query;
       if (selectedCat && selectedCat !== 'All') params.category = selectedCat;
