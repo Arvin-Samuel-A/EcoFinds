@@ -4,6 +4,10 @@ import AuthPage from './pages/AuthPage'
 import ProfilePage from './pages/ProfilePage'
 import CartPage from './pages/CartPage'
 import HomePage from './pages/HomePage'
+import Contact from './pages/Contact'
+import Support from './pages/Support'
+import AboutUs from './pages/AboutUs'
+import OurMission from './pages/OurMission'
 
 function App() {
   return (
@@ -23,6 +27,10 @@ function App() {
         <Route path="/login" element={<AuthPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/cart" element={<CartPage />} />
+        <Route path="/abtus" element={<AboutUs />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/mission" element={<OurMission />} />
       </Routes>
       <footer className="home-header2">
         <div className="footer-content">
@@ -42,10 +50,10 @@ function App() {
             <div className="footer-column">
               <h3>Company</h3>
               <ul>
-                <li><a href="#">About Us</a></li>
-                <li><a href="#">Our Mission</a></li>
-                <li><a href="#">Contact</a></li>
-                <li><a href="#">Support</a></li>
+                <li><a href="/abtus">About Us</a></li>
+                <li><a href="/mission">Our Mission</a></li>
+                <li><a href="/contact">Contact</a></li>
+                <li><a href="/support">Support</a></li>
               </ul>
             </div>
           </div>
