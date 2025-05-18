@@ -2,19 +2,11 @@ import './App.css'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import AuthPage from './pages/AuthPage'
 import ProfilePage from './pages/ProfilePage'
-<<<<<<< HEAD
 import CartPage from './pages/CartPage'
-=======
 import HomePage from './pages/HomePage'
->>>>>>> 79a507ca069f2b0a7c54e54599ab649135cf2c3c
 
 function App() {
   return (
-<<<<<<< HEAD
-    <>
-    <AuthPage />
-    </>
-=======
     
     <Router>
       <header className="home-header">
@@ -24,13 +16,14 @@ function App() {
         </div></a>
         <div className="auth-buttons">
           <a href="/login"><button className="secondary-btn">Log In</button></a>
-          <a href="/signup"><button className="primary-btn">Sign Up</button></a>
+          <a href="/login"><button className="primary-btn">Sign Up</button></a>
         </div>
       </header>
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<AuthPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/cart" element={<ProfilePage />} />
       </Routes>
       <footer className="home-header2">
         <div className="footer-content">
@@ -65,7 +58,6 @@ function App() {
       </footer>
       
     </Router>
->>>>>>> 79a507ca069f2b0a7c54e54599ab649135cf2c3c
   )
 }
 
