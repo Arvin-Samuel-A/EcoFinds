@@ -2,13 +2,13 @@
 :root {
   --primary-color: #2a9d8f;
   --secondary-color: #264653;
-  --background-color: #f0f4f3;
+  --background-color: black;
   --text-color: #333333;
   --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   --border-radius: 6px;
   --spacing: 16px;
   --button-bg-color: var(--primary-color);
-  --button-text-color: #ffffff;
+  --button-text-color: black;
   --button-hover-bg-color: #21867a;
 }
 
