@@ -1,9 +1,6 @@
 import jwt from 'jsonwebtoken';
 import Joi from 'joi';
 
-/**
- * Authenticate using JWT from Authorization header.
- */
 export const authenticateJWT = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -21,9 +18,6 @@ export const authenticateJWT = (req, res, next) => {
   }
 };
 
-/**
- * Authorize based on user roles.
- */
 export const authorizeRoles = (...roles) => (req, res, next) => {
   const { role } = req.user || {};
   if (!role || !roles.includes(role)) {
@@ -32,9 +26,7 @@ export const authorizeRoles = (...roles) => (req, res, next) => {
   next();
 };
 
-/**
- * Validate request body against a Joi schema.
- */
+
 export const validateBody = (schema) => async (req, res, next) => {
   try {
     req.body = await schema.validateAsync(req.body, { abortEarly: false, stripUnknown: true });
@@ -45,9 +37,7 @@ export const validateBody = (schema) => async (req, res, next) => {
   }
 };
 
-/**
- * Global error handler for Express.
- */
+
 export const errorHandler = (err, req, res, next) => {
   console.error(err);
   const status = err.status || 500;
