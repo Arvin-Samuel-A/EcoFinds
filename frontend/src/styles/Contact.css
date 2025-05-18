@@ -1,0 +1,79 @@
+/* Shared theme variables */
+:root {
+  --primary-color: #2a9d8f;
+  --secondary-color: #264653;
+  --background-color: black;
+  --text-color: #333333;
+  --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --border-radius: 6px;
+  --spacing: 16px;
+  --button-bg-color: var(--primary-color);
+  --button-text-color: black;
+  --button-hover-bg-color: #21867a;
+}
+
+/* Container */
+.contact-container {
+  max-width: 600px;
+  margin: 40px auto;
+  padding: var(--spacing);
+  background-color: var(--background-color);
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  font-family: var(--font-family);
+  color: var(--text-color);
+}
+
+/* Headings */
+.contact-container h1 {
+  color: var(--secondary-color);
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+/* Form */
+.contact-form {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Labels */
+.contact-form label {
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+/* Inputs and textarea */
+.contact-form input,
+.contact-form textarea {
+  padding: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #ccc;
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  font-family: var(--font-family);
+  resize: vertical;
+  transition: border-color 0.3s ease;
+}
+
+.contact-form input:focus,
+.contact-form textarea:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+/* Button */
+.contact-form button {
+  background-color: var(--button-bg-color);
+  color: var(--button-text-color);
+  padding: 12px;
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.contact-form button:hover {
+  background-color: var(--button-hover-bg-color);
+}
