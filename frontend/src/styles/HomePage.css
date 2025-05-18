@@ -129,6 +129,15 @@
   text-align: center;
   position: relative;
   z-index: 5;
+  font-size: 1.5rem; /* increased font size */
+}
+
+.company-overview p {
+  font-size: 1.5rem; /* increased font size for paragraphs */
+}
+
+.company-overview h1, .company-overview h2, .company-overview h3 {
+  font-size: 3rem; /* increased font size for headings */
 }
 
 .company-title {

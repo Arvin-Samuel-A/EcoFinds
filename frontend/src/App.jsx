@@ -9,6 +9,7 @@ import Support from './pages/Support'
 import AboutUs from './pages/AboutUs'
 import OurMission from './pages/OurMission'
 import AddNewProduct from './pages/AddNewProduct'
+import Listing from './pages/MyListingsPage'
 
 function App() {
   return (
@@ -18,9 +19,9 @@ function App() {
           <h1 className="logo-text">EcoFinds</h1>
         </a>
         <nav className="main-nav">
-          <a href="/abtus" className="nav-link">Listings</a>
-          <a href="/mission" className="nav-link">Add Products</a>
-          <a href="/contact" className="nav-link">Cart</a>
+          <a href="/listing" className="nav-link">Listings</a>
+          <a href="/addproduct" className="nav-link">Add Products</a>
+          <a href="/cart" className="nav-link">Cart</a>
         </nav>
         <div className="auth-buttons">
           <a href="/cart" className="cart-icon">
@@ -45,6 +46,7 @@ function App() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/mission" element={<OurMission />} />
           <Route path="/addproduct" element={<AddNewProduct />} />
+          <Route path="/listing" element={<Listing />} />
         </Routes>
       </main>
       <footer className="home-footer">
