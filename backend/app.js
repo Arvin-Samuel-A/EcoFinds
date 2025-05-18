@@ -31,7 +31,7 @@ const productSchema = Joi.object({ title: Joi.string().required(), description: 
 const cartSchema = Joi.object({ productId: Joi.string().required(), quantity: Joi.number().min(1) });
 
 // Utils
-tokenSign = (user) => {
+const tokenSign = (user) => {
     const payload = { id: user._id, role: user.role };
     return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN });
 };

@@ -11,10 +11,7 @@ async function initDB() {
         throw new Error('MONGO_URI environment variable not set');
     }
     try {
-        await mongoose.connect(MONGO_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-        });
+        await mongoose.connect(MONGO_URI);
         console.log('Connected to MongoDB');
     } catch (err) {
         console.error('Error connecting to MongoDB:', err);
@@ -89,7 +86,7 @@ const orderSchema = new Schema(
 );
 const Order = mongoose.model('Order', orderSchema);
 
-export default {
+export  {
     initDB,
     User,
     Product,
