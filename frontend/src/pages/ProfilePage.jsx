@@ -22,13 +22,13 @@ const ProfilePage = () => {
     const fetchUserData = async () => {
       try {
         setLoading(true);
-        const token = localStorage.getItem('token');
+        const token = localStorage.getItem('authToken');
         
         if (!token) {
           throw new Error('Authentication required');
         }
         
-        const response = await axios.get('/api/users/me', {
+        const response = await axios.get('http://localhost:6080/api/users/me', {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -77,14 +77,14 @@ const ProfilePage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('authToken');
       
       if (!token) {
         throw new Error('Authentication required');
       }
       
       // Update user data
-      const response = await axios.put('/api/users/me', formData, {
+      const response = await axios.put('http://localhost:6080/api/users/me', formData, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -96,7 +96,7 @@ const ProfilePage = () => {
         const formData = new FormData();
         formData.append('profileImage', profileImage);
         
-        await axios.post('/api/users/me/profile-image', formData, {
+        await axios.post('http://localhost:6080/api/users/me/profile-image', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
             Authorization: `Bearer ${token}`
@@ -130,7 +130,7 @@ const ProfilePage = () => {
 
   // Handle logout
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('authToken');
     // Redirect to login page
     window.location.href = '/login';
   };
