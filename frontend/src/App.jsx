@@ -8,6 +8,7 @@ import Contact from './pages/Contact'
 import Support from './pages/Support'
 import AboutUs from './pages/AboutUs'
 import OurMission from './pages/OurMission'
+import AddNewProduct from './pages/AddNewProduct'
 
 function App() {
   return (
@@ -31,7 +32,8 @@ function App() {
         <Route path="/support" element={<Support />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/mission" element={<OurMission />} />
-      </Routes>
+        <Route path="/addproduct" element={<AddNewProduct />} />
+       </Routes>
       <footer className="home-header2">
         <div className="footer-content">
           <div className="footer-logo">
@@ -45,6 +47,7 @@ function App() {
                 <li><a href="/cart">Cart</a></li>
                 <li><a href="/login">Sign Up</a></li>
                 <li><a href="/login">Log In</a></li>
+                <li><a href="/addproduct">Add Your Products</a></li>
               </ul>
             </div>
             <div className="footer-column">
