@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import './AuthPage.css';
+import '../styles/AuthPage.css';
 import { X } from 'lucide-react';
 
 const AuthPage = () => {
