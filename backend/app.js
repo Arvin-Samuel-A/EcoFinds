@@ -17,7 +17,7 @@ initDB().catch(err => {
 });
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 6080;
 
 // Middleware
 app.use(cors({ origin: process.env.CLIENT_URL }));
