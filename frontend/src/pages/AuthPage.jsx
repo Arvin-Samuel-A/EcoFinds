@@ -20,7 +20,7 @@ const AuthPage = () => {
   const handleSubmit = async (e) => {
   e.preventDefault();
 
-  const endpoint = isLogin ? 'http://localhost:6000/api/auth/login' : 'http://localhost:6000/api/auth/register';
+  const endpoint = isLogin ? 'http://localhost:6080/api/auth/login' : 'http://localhost:6080/api/auth/register';
 
   const payload = isLogin
     ? {
