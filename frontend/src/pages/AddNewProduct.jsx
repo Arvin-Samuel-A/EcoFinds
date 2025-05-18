@@ -8,6 +8,7 @@ export default function AddNewProduct() {
     price: '',
     category: '',
     stock: 0,
+    role: 'seller',
     images: []
   });
   const [loading, setLoading] = useState(false);
@@ -49,10 +50,22 @@ export default function AddNewProduct() {
     });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     setLoading(true);
     setError(null);
+    
+    // Basic form validation matching the server schema requirements
+    if (!formData.title || formData.title.trim() === '') {
+      setError('Product title is required');
+      setLoading(false);
+      return;
+    }
+    
+    if (formData.price === '' || formData.price <= 0) {
+      setError('Price must be a positive number');
+      setLoading(false);
+      return;
+    }
     
     try {
       const token = localStorage.getItem('authToken');
@@ -61,21 +74,54 @@ export default function AddNewProduct() {
         throw new Error('Authentication required. Please login.');
       }
       
+      // Ensure data structure matches schema expectations
+      const productData = {
+        title: formData.title.trim(),
+        description: formData.description?.trim() || '',
+        price: Number(formData.price),
+        category: formData.category || 'Other',
+        stock: Number(formData.stock) || 0,
+        images: formData.images || [],
+        user: {role:"seller"}
+        // Note: seller will be added by the backend from the JWT token
+      };
+      
       const response = await fetch('http://localhost:6080/api/products', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}` // JWT for authenticateJWT middleware
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(productData)
       });
       
       if (!response.ok) {
         const errorData = await response.json();
+        // Handle specific validation errors that might be returned
+        if (errorData.errors) {
+          const errorMessages = Object.values(errorData.errors)
+            .map(err => err.message || err)
+            .join(', ');
+          throw new Error(errorMessages || 'Validation failed');
+        }
+        
+        // Handle authorization errors
+        if (response.status === 401) {
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        if (response.status === 403) {
+          throw new Error('You do not have permission to create products. Seller or admin role required.');
+        }
+        
         throw new Error(errorData.message || 'Failed to create product');
       }
       
+      const createdProduct = await response.json();
+      
       setSuccess(true);
+      console.log('Product created successfully:', createdProduct);
+      
       // Reset form after successful submission
       setFormData({
         title: '',
@@ -117,7 +163,11 @@ export default function AddNewProduct() {
       <div className="relative z-10 max-w-3xl mx-auto">
         {/* Header with back button */}
         <div className="flex items-center mb-8">
-          <button className="flex items-center text-cyan-400 hover:text-cyan-300 transition-colors">
+          <button 
+            className="flex items-center text-cyan-400 hover:text-cyan-300 transition-colors"
+            type="button"
+            onClick={() => window.history.back()}
+          >
             <ArrowLeft size={24} className="mr-2" />
             <span className="text-lg">Back</span>
           </button>
@@ -144,8 +194,8 @@ export default function AddNewProduct() {
           </div>
         )}
         
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Form Fields */}
+        <div className="space-y-6">
           {/* Product Title */}
           <div className="space-y-2">
             <label htmlFor="title" className="block text-cyan-300">Product Title</label>
@@ -275,8 +325,9 @@ export default function AddNewProduct() {
           
           {/* Submit Button */}
           <button
-            type="submit"
+            type="button"
             disabled={loading}
+            onClick={handleSubmit}
             className="w-full py-4 bg-gradient-to-r from-cyan-500 to-pink-500 text-white font-bold rounded-lg hover:from-cyan-600 hover:to-pink-600 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-opacity-50 transition-all disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {loading ? (
@@ -286,7 +337,7 @@ export default function AddNewProduct() {
               </span>
             ) : 'Submit Listing'}
           </button>
-        </form>
+        </div>
       </div>
     </div>
   );

@@ -19,7 +19,8 @@ export const authenticateJWT = (req, res, next) => {
 };
 
 export const authorizeRoles = (...roles) => (req, res, next) => {
-  const { role } = req.user || {};
+  console.log(req.body);
+  const { role } = req.body.user || {};
   if (!role || !roles.includes(role)) {
     return res.status(403).json({ message: 'Forbidden: insufficient permissions' });
   }
