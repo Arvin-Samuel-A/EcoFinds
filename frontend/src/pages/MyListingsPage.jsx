@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import '../styles/AuthPage.css'; // Reusing existing styles
-import '../styles/MyListingsPage.css'; // Add specific styles for MyListingsPage
+import '../styles/HomePage.css'; // Changed to import HomePage.css for background styles
+import '../styles/MyListingsPage.css'; // Keep specific styles for MyListingsPage
 import { useNavigate } from 'react-router-dom';
 
 const MyListingsPage = () => {
@@ -120,7 +120,19 @@ const MyListingsPage = () => {
   };
 
   return (
-    <div className="auth-container">
+    <div className="home-container">
+      {/* Background Elements */}
+      <div className="grid-pattern"></div>
+      <div className="gradient-orbs">
+        <div className="orb orb-1"></div>
+        <div className="orb orb-2"></div>
+        <div className="orb orb-3"></div>
+        <div className="orb orb-4"></div>
+      </div>
+      <div className="grid-lines"></div>
+      <div className="wave-animation"></div>
+      <div className="eco-leaves"></div>
+
       <div className="auth-content">
         <div className="listings-controls">
           <button className="add-product-btn" onClick={handleAddNew}>
