@@ -67,7 +67,7 @@ const MyListingsPage = () => {
   };
 
   const handleAddNew = () => {
-    setShowAddModal(true);
+    navigate('/addproduct');
   };
 
   const handleInputChange = (e) => {
