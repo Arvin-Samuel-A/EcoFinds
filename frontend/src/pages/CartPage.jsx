@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import '../styles/CartPage.css';
+import '../styles/HomePage.css'; // Changed to import HomePage.css for background styles
 
 const CartPage = () => {
   const [cartItems, setCartItems] = useState([
@@ -209,7 +209,19 @@ const CartPage = () => {
     : { All: filteredItems };
 
   return (
-    <div className="cart-container">
+    <div className="home-container">
+      {/* Background Elements */}
+      <div className="grid-pattern"></div>
+      <div className="gradient-orbs">
+        <div className="orb orb-1"></div>
+        <div className="orb orb-2"></div>
+        <div className="orb orb-3"></div>
+        <div className="orb orb-4"></div>
+      </div>
+      <div className="grid-lines"></div>
+      <div className="wave-animation"></div>
+      <div className="eco-leaves"></div>
+
       <div className="cart-header">
         <div className="logo">
           <div className="logo-text">EcoFinds</div>

@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import ProductCard from '../components/ProductCard.jsx';
 import { useAuth } from '../hooks/useAuth';
 
+import React, { useEffect, useState } from 'react';
+import ProductCard from '../components/ProductCard.jsx';
+import { useAuth } from '../hooks/useAuth';
+
 export default function MyListings() {
   const { token } = useAuth();
   const [products, setProducts] = useState([]);
@@ -37,20 +41,34 @@ export default function MyListings() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto py-6 px-4">
-      <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-500 mb-6">
-        My Listings
-      </h1>
+    <div className="home-container">
+      {/* Background Elements */}
+      <div className="grid-pattern"></div>
+      <div className="gradient-orbs">
+        <div className="orb orb-1"></div>
+        <div className="orb orb-2"></div>
+        <div className="orb orb-3"></div>
+        <div className="orb orb-4"></div>
+      </div>
+      <div className="grid-lines"></div>
+      <div className="wave-animation"></div>
+      <div className="eco-leaves"></div>
 
-      {products.length === 0 ? (
-        <p className="text-center text-gray-400">You have no active listings.</p>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map((product) => (
-            <ProductCard key={product._id} product={product} />
-          ))}
-        </div>
-      )}
+      <div className="max-w-7xl mx-auto py-6 px-4 relative z-10">
+        <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-500 mb-6">
+          My Listings
+        </h1>
+
+        {products.length === 0 ? (
+          <p className="text-center text-gray-400">You have no active listings.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {products.map((product) => (
+              <ProductCard key={product._id} product={product} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

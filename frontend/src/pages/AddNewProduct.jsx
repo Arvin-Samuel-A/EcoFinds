@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Upload, Loader } from 'lucide-react';
+import '../styles/HomePage.css';
 
 export default function AddNewProduct() {
   const [formData, setFormData] = useState({
@@ -154,13 +155,20 @@ export default function AddNewProduct() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white p-6">
-      {/* Decorative elements inspired by the retrofuturistic theme */}
-      <div className="absolute top-0 left-0 w-32 h-32 bg-purple-500 rounded-full opacity-10 blur-3xl"></div>
-      <div className="absolute bottom-0 right-0 w-64 h-64 bg-cyan-400 rounded-full opacity-10 blur-3xl"></div>
-      <div className="absolute top-1/3 right-1/4 w-40 h-40 bg-pink-500 rounded-full opacity-10 blur-3xl"></div>
-      
-      <div className="relative z-10 max-w-3xl mx-auto">
+    <div className="home-container">
+      {/* Background Elements */}
+      <div className="grid-pattern"></div>
+      <div className="gradient-orbs">
+        <div className="orb orb-1"></div>
+        <div className="orb orb-2"></div>
+        <div className="orb orb-3"></div>
+        <div className="orb orb-4"></div>
+      </div>
+      <div className="grid-lines"></div>
+      <div className="wave-animation"></div>
+      <div className="eco-leaves"></div>
+
+      <div className="min-h-screen text-white p-6 relative z-10 max-w-3xl mx-auto">
         {/* Header with back button */}
         <div className="flex items-center mb-8">
           <button 
