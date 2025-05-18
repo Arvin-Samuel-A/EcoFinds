@@ -23,17 +23,19 @@ function App() {
           <a href="/login"><button className="primary-btn">Sign Up</button></a>
         </div>
       </header>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/login" element={<AuthPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/cart" element={<CartPage />} />
-        <Route path="/abtus" element={<AboutUs />} />
-        <Route path="/support" element={<Support />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/mission" element={<OurMission />} />
-        <Route path="/addproduct" element={<AddNewProduct />} />
-       </Routes>
+      <main>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<AuthPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/abtus" element={<AboutUs />} />
+          <Route path="/support" element={<Support />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/mission" element={<OurMission />} />
+          <Route path="/addproduct" element={<AddNewProduct />} />
+        </Routes>
+      </main>
       <footer className="home-header2">
         <div className="footer-content">
           <div className="footer-logo">
