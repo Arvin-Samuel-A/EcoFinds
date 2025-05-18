@@ -2,6 +2,9 @@ import './App.css'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import AuthPage from './pages/AuthPage'
 import ProfilePage from './pages/ProfilePage'
+<<<<<<< HEAD
+import CartPage from './pages/CartPage'
+=======
 import HomePage from './pages/HomePage'
 
 function App() {
