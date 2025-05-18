@@ -7,7 +7,6 @@ import HomePage from './pages/HomePage'
 
 function App() {
   return (
-    
     <Router>
       <header className="home-header">
         <a href="/"><div className="logo">
@@ -23,7 +22,7 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<AuthPage />} />
         <Route path="/profile" element={<ProfilePage />} />
-        <Route path="/cart" element={<ProfilePage />} />
+        <Route path="/cart" element={<CartPage />} />
       </Routes>
       <footer className="home-header2">
         <div className="footer-content">
