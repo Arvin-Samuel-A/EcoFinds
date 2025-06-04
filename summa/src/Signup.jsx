@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, User, Phone, Image, Leaf, ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Phone, Leaf, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
+import ImageUpload from './ImageUpload';
 
 const Signup = () => {
   const { register, loading, error, setError } = useAuth();
@@ -9,6 +10,7 @@ const Signup = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -16,38 +18,26 @@ const Signup = () => {
     confirmPassword: '',
     phone: '',
     role: 'buyer',
-    images: {
-      url: '',
-      gcpStoragePath: '',
-      altText: '',
-      isPrimary: true
-    }
   });
 
   const steps = [
     { number: 1, title: 'Personal Info', description: 'Basic information' },
     { number: 2, title: 'Account Setup', description: 'Email and password' },
-    { number: 3, title: 'Profile Details', description: 'Complete your profile' }
+    { number: 3, title: 'Profile Picture', description: 'Upload your photo' }
   ];
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    if (name.startsWith('images.')) {
-      const imageField = name.split('.')[1];
-      setFormData(prev => ({
-        ...prev,
-        images: {
-          ...prev.images,
-          [imageField]: value
-        }
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
     // Clear error when user starts typing
+    if (error) setError('');
+  };
+
+  const handleImageUploaded = (imageData) => {
+    setUploadedImage(imageData);
     if (error) setError('');
   };
 
@@ -86,14 +76,7 @@ const Signup = () => {
         }
         break;
       case 3:
-        if (!formData.images.url.trim()) {
-          setError('Profile image URL is required');
-          return false;
-        }
-        if (!formData.images.gcpStoragePath.trim()) {
-          setError('GCP Storage path is required');
-          return false;
-        }
+        // Profile picture is optional, so no validation needed
         break;
       default:
         return true;
@@ -124,12 +107,15 @@ const Signup = () => {
       password: formData.password,
       phone: formData.phone,
       role: formData.role,
-      images: {
-        url: formData.images.url,
-        gcpStoragePath: formData.images.gcpStoragePath,
-        altText: formData.images.altText || formData.name,
-        isPrimary: true
-      }
+      // Only include images if uploaded
+      ...(uploadedImage && {
+        images: {
+          url: uploadedImage.url,
+          gcpStoragePath: uploadedImage.gcpStoragePath,
+          altText: uploadedImage.altText || formData.name,
+          isPrimary: true
+        }
+      })
     };
 
     const result = await register(userData);
@@ -275,54 +261,18 @@ const Signup = () => {
 
       case 3:
         return (
-          <>
-            <div className="mb-3">
-              <label htmlFor="imageUrl" className="form-label fw-medium">Profile Image URL</label>
-              <div className="input-group">
-                <span className="input-group-text bg-light border-end-0">
-                  <Image size={18} className="text-muted" />
-                </span>
-                <input
-                  type="url"
-                  className="form-control border-start-0 py-3"
-                  id="imageUrl"
-                  name="images.url"
-                  value={formData.images.url}
-                  onChange={handleInputChange}
-                  placeholder="https://example.com/profile.jpg"
-                  required
-                />
-              </div>
+          <div className="text-center">
+            <ImageUpload
+              onImageUploaded={handleImageUploaded}
+              altText={formData.name}
+              folder="profiles"
+            />
+            <div className="mt-3">
+              <small className="text-muted">
+                Profile picture is optional. You can add it now or later from your profile settings.
+              </small>
             </div>
-
-            <div className="mb-3">
-              <label htmlFor="gcpPath" className="form-label fw-medium">GCP Storage Path</label>
-              <input
-                type="text"
-                className="form-control py-3"
-                id="gcpPath"
-                name="images.gcpStoragePath"
-                value={formData.images.gcpStoragePath}
-                onChange={handleInputChange}
-                placeholder="profiles/user123.jpg"
-                required
-              />
-              <div className="form-text">This will be used for cloud storage organization</div>
-            </div>
-
-            <div className="mb-4">
-              <label htmlFor="altText" className="form-label fw-medium">Image Description (Optional)</label>
-              <input
-                type="text"
-                className="form-control py-3"
-                id="altText"
-                name="images.altText"
-                value={formData.images.altText}
-                onChange={handleInputChange}
-                placeholder="Description of your profile image"
-              />
-            </div>
-          </>
+          </div>
         );
 
       default:
