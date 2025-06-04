@@ -331,6 +331,66 @@ const chatMessageSchema = new Schema(
 
 const ChatMessage = model('ChatMessage', chatMessageSchema);
 
+const ticketMessageSchema = new mongoose.Schema(
+  {
+    sender: { type: mongoose.Types.ObjectId, ref: 'User', required: true },
+    content: { type: String, required: true },
+    timestamp: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const ticketSchema = new mongoose.Schema(
+  {
+    user: { type: mongoose.Types.ObjectId, ref: 'User', required: true },       // Who opened the ticket
+    type: { type: String, enum: ['complaint', 'dispute'], required: true },
+    relatedOrder: { type: mongoose.Types.ObjectId, ref: 'Order' },             // e.g., disputing an order
+    relatedProduct: { type: mongoose.Types.ObjectId, ref: 'Product' },         // e.g., complaint about a product
+    subject: { type: String, required: true, trim: true },
+    description: { type: String, required: true, trim: true },
+    status: {
+      type: String,
+      enum: ['open', 'in_progress', 'resolved', 'closed'],
+      default: 'open',
+    },
+    messages: [ticketMessageSchema],  // Conversation between user and admin
+    assignedTo: { type: mongoose.Types.ObjectId, ref: 'User' }, // Admin handling the ticket
+  },
+  { timestamps: true }
+);
+
+const Ticket = mongoose.model('Ticket', ticketSchema);
+
+const auctionBidSchema = new mongoose.Schema(
+  {
+    bidder: { type: mongoose.Types.ObjectId, ref: 'User', required: true },
+    amount: { type: Number, required: true, min: 0 },
+    timestamp: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+const auctionSchema = new mongoose.Schema(
+  {
+    product: { type: mongoose.Types.ObjectId, ref: 'Product', required: true },
+    seller: { type: mongoose.Types.ObjectId, ref: 'User', required: true },
+    startPrice: { type: Number, required: true, min: 0 },
+    currentPrice: { type: Number, required: true, min: 0 },
+    bids: [auctionBidSchema],
+    startTime: { type: Date, required: true },
+    endTime: { type: Date, required: true },
+    status: {
+      type: String,
+      enum: ['upcoming', 'live', 'ended', 'cancelled'],
+      default: 'upcoming',
+    },
+  },
+  { timestamps: true }
+);
+
+const Auction = model('Auction', auctionSchema);
+
+
 /* ============================
    12. Connect and Export All Models
    ============================ */
@@ -348,5 +408,7 @@ export {
     ReportedReview,
     SavedSearch,
     PriceAlert,
-    ChatMessage
+    ChatMessage,
+    Ticket,
+    Auction
 };

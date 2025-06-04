@@ -21,6 +21,8 @@ import {
     SavedSearch,
     PriceAlert,
     ChatMessage,
+    Ticket,
+    Auction
 } from './orm.js';
 
 import cors from 'cors';
@@ -710,89 +712,374 @@ app.delete('/api/products/:id', protect, async (req, res) => {
     }
 });
 
-app.get('/api/search', async (req, res) => {
+
+const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+// ---------------------------------------
+// 1. POST /api/auctions
+//    - Create a new auction listing (protected; only seller or admin)
+//    - Body: {
+//        productId: string,
+//        startPrice: number,
+//        startTime: ISODate string,
+//        endTime: ISODate string
+//      }
+// ---------------------------------------
+app.post('/api/auctions', protect, async (req, res) => {
   try {
-    // Extract query parameters
+    const user = req.user;
+    if (!['seller', 'admin'].includes(user.role)) {
+      return res
+        .status(403)
+        .json({ message: 'Access denied: only sellers or admins can create auctions' });
+    }
+
+    const { productId, startPrice, startTime, endTime } = req.body;
+    if (!productId || !isValidId(productId)) {
+      return res.status(400).json({ message: 'Valid productId is required' });
+    }
+    const priceNum = Number(startPrice);
+    if (isNaN(priceNum) || priceNum < 0) {
+      return res.status(400).json({ message: 'Valid startPrice is required' });
+    }
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    if (!(start instanceof Date) || isNaN(start) || !(end instanceof Date) || isNaN(end)) {
+      return res.status(400).json({ message: 'Valid startTime and endTime are required' });
+    }
+    if (end <= start) {
+      return res.status(400).json({ message: 'endTime must be after startTime' });
+    }
+
+    // Ensure the product exists and that the requester is the seller of that product (or admin)
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    if (
+      product.seller.toString() !== user._id.toString() &&
+      user.role !== 'admin'
+    ) {
+      return res
+        .status(403)
+        .json({ message: 'Access denied: not the product owner or an admin' });
+    }
+
+    // Create Auction
+    const auction = new Auction({
+      product: productId,
+      seller: product.seller,
+      startPrice: priceNum,
+      currentPrice: priceNum,
+      bids: [],
+      startTime: start,
+      endTime: end,
+      status: start > new Date() ? 'upcoming' : 'live',
+    });
+
+    const created = await auction.save();
+    return res.status(201).json(created);
+  } catch (err) {
+    console.error('Error in POST /api/auctions:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 2. GET /api/auctions
+//    - List all auctions (public)
+//    - Optional query params: status (upcoming/live/ended), page, limit
+// ---------------------------------------
+app.get('/api/auctions', async (req, res) => {
+  try {
     const pageSize = Number(req.query.limit) || 20;
     const page = Number(req.query.page) || 1;
-    const keyword = req.query.keyword ? req.query.keyword.trim() : null;
-    const categoryId = req.query.category ? req.query.category.trim() : null;
-    const minPrice = req.query.minPrice ? Number(req.query.minPrice) : null;
-    const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : null;
-    const minRating = req.query.rating ? Number(req.query.rating) : null;
-    const inStock = req.query.inStock === 'true';
-    const sortBy = req.query.sortBy || 'newest';
-    const order = req.query.order === 'asc' ? 1 : -1;
+    const statusFilter = req.query.status;
 
-    // Build filter object
     const filter = {};
-
-    // Keyword filter (search in name OR description, case-insensitive)
-    if (keyword) {
-      filter.$or = [
-        { name: { $regex: keyword, $options: 'i' } },
-        { description: { $regex: keyword, $options: 'i' } },
-      ];
+    if (
+      statusFilter &&
+      ['upcoming', 'live', 'ended', 'cancelled'].includes(statusFilter)
+    ) {
+      filter.status = statusFilter;
     }
 
-    // Category filter
-    if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
-      filter.categories = mongoose.Types.ObjectId(categoryId);
-    }
-
-    // Price range filter
-    if (minPrice !== null || maxPrice !== null) {
-      filter.price = {};
-      if (minPrice !== null) filter.price.$gte = minPrice;
-      if (maxPrice !== null) filter.price.$lte = maxPrice;
-    }
-
-    // Rating filter (rating >= minRating)
-    if (minRating !== null) {
-      filter.rating = { $gte: minRating };
-    }
-
-    // In-stock filter (countInStock > 0)
-    if (inStock) {
-      filter.countInStock = { $gt: 0 };
-    }
-
-    // Determine sorting field
-    let sortField;
-    switch (sortBy) {
-      case 'price':
-        sortField = 'price';
-        break;
-      case 'rating':
-        sortField = 'rating';
-        break;
-      case 'newest':
-      default:
-        sortField = 'createdAt';
-        break;
-    }
-
-    // Count total matching documents
-    const total = await Product.countDocuments(filter);
-
-    // Fetch paginated products
-    const products = await Product.find(filter)
+    // Count & fetch paginated
+    const total = await Auction.countDocuments(filter);
+    const auctions = await Auction.find(filter)
+      .populate('product', 'name slug images')
       .populate('seller', 'name')
-      .populate('categories', 'name slug')
-      .sort({ [sortField]: order })
+      .sort({ createdAt: -1 })
       .skip(pageSize * (page - 1))
-      .limit(pageSize);
+      .limit(pageSize)
+      .lean();
 
     return res.json({
-      products,
+      auctions,
       page,
       pages: Math.ceil(total / pageSize),
       total,
     });
   } catch (err) {
-    console.error('Error in GET /api/search:', err);
+    console.error('Error in GET /api/auctions:', err);
     return res.status(500).json({ message: 'Server error' });
   }
+});
+
+// ---------------------------------------
+// 3. GET /api/auctions/:id
+//    - Get details of a specific auction (public)
+// ---------------------------------------
+app.get('/api/auctions/:id', async (req, res) => {
+  try {
+    const auctionId = req.params.id;
+    if (!isValidId(auctionId)) {
+      return res.status(400).json({ message: 'Invalid auction ID' });
+    }
+
+    const auction = await Auction.findById(auctionId)
+      .populate('product', 'name slug images')
+      .populate('seller', 'name')
+      .lean();
+    if (!auction) {
+      return res.status(404).json({ message: 'Auction not found' });
+    }
+
+    return res.json(auction);
+  } catch (err) {
+    console.error('Error in GET /api/auctions/:id:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 4. POST /api/auctions/:id/bid
+//    - Place a bid on a live auction (protected; only buyers)
+//    - Body: { amount: number }
+// ---------------------------------------
+app.post('/api/auctions/:id/bid', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    if (req.user.role !== 'buyer') {
+      return res
+        .status(403)
+        .json({ message: 'Only buyers can place bids' });
+    }
+
+    const auctionId = req.params.id;
+    if (!isValidId(auctionId)) {
+      return res.status(400).json({ message: 'Invalid auction ID' });
+    }
+
+    const auction = await Auction.findById(auctionId);
+    if (!auction) {
+      return res.status(404).json({ message: 'Auction not found' });
+    }
+
+    // Must be in “live” status
+    const now = new Date();
+    if (now < auction.startTime || now > auction.endTime || auction.status !== 'live') {
+      return res.status(400).json({ message: 'Auction is not live' });
+    }
+
+    const bidAmount = Number(req.body.amount);
+    if (isNaN(bidAmount) || bidAmount <= auction.currentPrice) {
+      return res
+        .status(400)
+        .json({ message: `Bid must exceed current price (${auction.currentPrice})` });
+    }
+
+    // Add new bid
+    auction.bids.push({
+      bidder: userId,
+      amount: bidAmount,
+      timestamp: now,
+    });
+    auction.currentPrice = bidAmount;
+    const updated = await auction.save();
+
+    // Return updated auction (with bids array)
+    const populated = await Auction.findById(updated._id)
+      .populate('bids.bidder', 'name')
+      .lean();
+    return res.json(populated);
+  } catch (err) {
+    console.error('Error in POST /api/auctions/:id/bid:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 5. PATCH /api/auctions/:id/close
+//    - Manually close an auction (protected; only seller or admin)
+// ---------------------------------------
+app.patch('/api/auctions/:id/close', protect, async (req, res) => {
+  try {
+    const auctionId = req.params.id;
+    if (!isValidId(auctionId)) {
+      return res.status(400).json({ message: 'Invalid auction ID' });
+    }
+
+    const auction = await Auction.findById(auctionId);
+    if (!auction) {
+      return res.status(404).json({ message: 'Auction not found' });
+    }
+
+    // Only seller or admin can close
+    if (
+      auction.seller.toString() !== req.user._id.toString() &&
+      req.user.role !== 'admin'
+    ) {
+      return res
+        .status(403)
+        .json({ message: 'Access denied: not the auction owner or an admin' });
+    }
+
+    // If already ended or cancelled, cannot reopen
+    if (['ended', 'cancelled'].includes(auction.status)) {
+      return res.status(400).json({ message: 'Auction already ended or cancelled' });
+    }
+
+    auction.status = 'ended';
+    auction.endTime = new Date(); // force end now
+    const updated = await auction.save();
+    const populated = await Auction.findById(updated._id)
+      .populate('bids.bidder', 'name')
+      .lean();
+
+    return res.json(populated);
+  } catch (err) {
+    console.error('Error in PATCH /api/auctions/:id/close:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 6. PATCH /api/auctions/:id/cancel
+//    - Cancel an auction before it goes live (protected; only seller or admin)
+// ---------------------------------------
+app.patch('/api/auctions/:id/cancel', protect, async (req, res) => {
+  try {
+    const auctionId = req.params.id;
+    if (!isValidId(auctionId)) {
+      return res.status(400).json({ message: 'Invalid auction ID' });
+    }
+
+    const auction = await Auction.findById(auctionId);
+    if (!auction) {
+      return res.status(404).json({ message: 'Auction not found' });
+    }
+
+    // Only seller or admin can cancel
+    if (
+      auction.seller.toString() !== req.user._id.toString() &&
+      req.user.role !== 'admin'
+    ) {
+      return res
+        .status(403)
+        .json({ message: 'Access denied: not the auction owner or an admin' });
+    }
+
+    // Can only cancel if auction hasn’t started yet
+    const now = new Date();
+    if (now >= auction.startTime) {
+      return res
+        .status(400)
+        .json({ message: 'Cannot cancel: auction already live or ended' });
+    }
+
+    auction.status = 'cancelled';
+    const updated = await auction.save();
+    return res.json({ message: 'Auction cancelled successfully', auction: updated });
+  } catch (err) {
+    console.error('Error in PATCH /api/auctions/:id/cancel:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+app.get('/api/search', async (req, res) => {
+    try {
+        // Extract query parameters
+        const pageSize = Number(req.query.limit) || 20;
+        const page = Number(req.query.page) || 1;
+        const keyword = req.query.keyword ? req.query.keyword.trim() : null;
+        const categoryId = req.query.category ? req.query.category.trim() : null;
+        const minPrice = req.query.minPrice ? Number(req.query.minPrice) : null;
+        const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : null;
+        const minRating = req.query.rating ? Number(req.query.rating) : null;
+        const inStock = req.query.inStock === 'true';
+        const sortBy = req.query.sortBy || 'newest';
+        const order = req.query.order === 'asc' ? 1 : -1;
+
+        // Build filter object
+        const filter = {};
+
+        // Keyword filter (search in name OR description, case-insensitive)
+        if (keyword) {
+            filter.$or = [
+                { name: { $regex: keyword, $options: 'i' } },
+                { description: { $regex: keyword, $options: 'i' } },
+            ];
+        }
+
+        // Category filter
+        if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+            filter.categories = mongoose.Types.ObjectId(categoryId);
+        }
+
+        // Price range filter
+        if (minPrice !== null || maxPrice !== null) {
+            filter.price = {};
+            if (minPrice !== null) filter.price.$gte = minPrice;
+            if (maxPrice !== null) filter.price.$lte = maxPrice;
+        }
+
+        // Rating filter (rating >= minRating)
+        if (minRating !== null) {
+            filter.rating = { $gte: minRating };
+        }
+
+        // In-stock filter (countInStock > 0)
+        if (inStock) {
+            filter.countInStock = { $gt: 0 };
+        }
+
+        // Determine sorting field
+        let sortField;
+        switch (sortBy) {
+            case 'price':
+                sortField = 'price';
+                break;
+            case 'rating':
+                sortField = 'rating';
+                break;
+            case 'newest':
+            default:
+                sortField = 'createdAt';
+                break;
+        }
+
+        // Count total matching documents
+        const total = await Product.countDocuments(filter);
+
+        // Fetch paginated products
+        const products = await Product.find(filter)
+            .populate('seller', 'name')
+            .populate('categories', 'name slug')
+            .sort({ [sortField]: order })
+            .skip(pageSize * (page - 1))
+            .limit(pageSize);
+
+        return res.json({
+            products,
+            page,
+            pages: Math.ceil(total / pageSize),
+            total,
+        });
+    } catch (err) {
+        console.error('Error in GET /api/search:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
 });
 
 
@@ -806,15 +1093,15 @@ app.get('/api/search', async (req, res) => {
 const vertexClient = new PredictionServiceClient();
 
 const getVertexEndpointPath = () => {
-  const project = process.env.VERTEX_PROJECT_ID;
-  const location = process.env.VERTEX_LOCATION;
-  const endpoint = process.env.VERTEX_ENDPOINT_ID;
-  if (!project || !location || !endpoint) {
-    throw new Error(
-      'Missing Vertex AI configuration. Please set VERTEX_PROJECT_ID, VERTEX_LOCATION, and VERTEX_ENDPOINT_ID.'
-    );
-  }
-  return `projects/${project}/locations/${location}/endpoints/${endpoint}`;
+    const project = process.env.VERTEX_PROJECT_ID;
+    const location = process.env.VERTEX_LOCATION;
+    const endpoint = process.env.VERTEX_ENDPOINT_ID;
+    if (!project || !location || !endpoint) {
+        throw new Error(
+            'Missing Vertex AI configuration. Please set VERTEX_PROJECT_ID, VERTEX_LOCATION, and VERTEX_ENDPOINT_ID.'
+        );
+    }
+    return `projects/${project}/locations/${location}/endpoints/${endpoint}`;
 };
 
 // ---------------------------------------
@@ -830,66 +1117,66 @@ const getVertexEndpointPath = () => {
 //    - Query Params: limit (default: 10)
 // ---------------------------------------
 app.get('/api/users/profile/vertex-recommendations', protect, async (req, res) => {
-  try {
-    const userId = req.user._id.toString();
-    const limit = Number(req.query.limit) || 10;
+    try {
+        const userId = req.user._id.toString();
+        const limit = Number(req.query.limit) || 10;
 
-    // 1. Retrieve the user’s past orders
-    const pastOrders = await Order.find({ user: userId }).select('orderItems.product');
-    const purchasedProductIds = pastOrders
-      .flatMap(order => order.orderItems.map(item => item.product.toString()))
-      .filter((v, i, a) => a.indexOf(v) === i); // unique
+        // 1. Retrieve the user’s past orders
+        const pastOrders = await Order.find({ user: userId }).select('orderItems.product');
+        const purchasedProductIds = pastOrders
+            .flatMap(order => order.orderItems.map(item => item.product.toString()))
+            .filter((v, i, a) => a.indexOf(v) === i); // unique
 
-    // 2. Build the instance payload for Vertex AI
-    //    Here, we assume the deployed model expects an object with a 'user_history' key,
-    //    which is a list of product IDs (strings). Adjust field names/structure if your model differs.
-    const instance = {
-      user_history: purchasedProductIds,
-      // You can include other features here if your model requires them:
-      // e.g., user_profile: { age: 30, interests: ['electronics', 'books'] }, etc.
-    };
+        // 2. Build the instance payload for Vertex AI
+        //    Here, we assume the deployed model expects an object with a 'user_history' key,
+        //    which is a list of product IDs (strings). Adjust field names/structure if your model differs.
+        const instance = {
+            user_history: purchasedProductIds,
+            // You can include other features here if your model requires them:
+            // e.g., user_profile: { age: 30, interests: ['electronics', 'books'] }, etc.
+        };
 
-    // 3. Prepare the Predict request
-    const endpointPath = getVertexEndpointPath();
-    const request = {
-      endpoint: endpointPath,
-      instances: [instance],
-      // parameters can be used to pass additional inference-time options; empty if not needed
-      parameters: {},
-    };
+        // 3. Prepare the Predict request
+        const endpointPath = getVertexEndpointPath();
+        const request = {
+            endpoint: endpointPath,
+            instances: [instance],
+            // parameters can be used to pass additional inference-time options; empty if not needed
+            parameters: {},
+        };
 
-    // 4. Call Vertex AI predict()
-    const [response] = await vertexClient.predict(request);
-    if (!response || !Array.isArray(response.predictions) || response.predictions.length === 0) {
-      return res.status(200).json({ recommendations: [] });
+        // 4. Call Vertex AI predict()
+        const [response] = await vertexClient.predict(request);
+        if (!response || !Array.isArray(response.predictions) || response.predictions.length === 0) {
+            return res.status(200).json({ recommendations: [] });
+        }
+
+        // 5. Extract recommended product IDs from the prediction response
+        //    We assume response.predictions[0] is something like { recommended_ids: ['id1', 'id2', ...] }
+        const prediction = response.predictions[0];
+        if (!prediction.recommended_ids || !Array.isArray(prediction.recommended_ids)) {
+            return res.status(200).json({ recommendations: [] });
+        }
+
+        // Limit the recommendations
+        const recommendedIds = prediction.recommended_ids.slice(0, limit);
+
+        // 6. Fetch product details from MongoDB
+        const objectIds = recommendedIds
+            .filter(id => mongoose.Types.ObjectId.isValid(id))
+            .map(id => mongoose.Types.ObjectId(id));
+
+        const recommendedProducts = await Product.find({ _id: { $in: objectIds } })
+            .populate('seller', 'name')
+            .populate('categories', 'name slug');
+
+        // 7. Return recommended products
+        return res.json({ recommendations: recommendedProducts });
+    } catch (err) {
+        console.error('Error in GET /api/users/profile/vertex-recommendations:', err);
+        // If Vertex AI fails, you can optionally fall back to a simpler in-app recommendation logic.
+        return res.status(500).json({ message: 'Server error in generating recommendations' });
     }
-
-    // 5. Extract recommended product IDs from the prediction response
-    //    We assume response.predictions[0] is something like { recommended_ids: ['id1', 'id2', ...] }
-    const prediction = response.predictions[0];
-    if (!prediction.recommended_ids || !Array.isArray(prediction.recommended_ids)) {
-      return res.status(200).json({ recommendations: [] });
-    }
-
-    // Limit the recommendations
-    const recommendedIds = prediction.recommended_ids.slice(0, limit);
-
-    // 6. Fetch product details from MongoDB
-    const objectIds = recommendedIds
-      .filter(id => mongoose.Types.ObjectId.isValid(id))
-      .map(id => mongoose.Types.ObjectId(id));
-
-    const recommendedProducts = await Product.find({ _id: { $in: objectIds } })
-      .populate('seller', 'name')
-      .populate('categories', 'name slug');
-
-    // 7. Return recommended products
-    return res.json({ recommendations: recommendedProducts });
-  } catch (err) {
-    console.error('Error in GET /api/users/profile/vertex-recommendations:', err);
-    // If Vertex AI fails, you can optionally fall back to a simpler in-app recommendation logic.
-    return res.status(500).json({ message: 'Server error in generating recommendations' });
-  }
 });
 
 
@@ -902,96 +1189,96 @@ app.get('/api/users/profile/vertex-recommendations', protect, async (req, res) =
 //    Body: { keyword: String (optional), filters: { category, minPrice, maxPrice, minRating, inStock } }
 //    Protected: user must be authenticated
 app.post('/api/saved-searches', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { keyword, filters } = req.body;
+    try {
+        const userId = req.user._id;
+        const { keyword, filters } = req.body;
 
-    // At least keyword or one filter should be provided
-    if (
-      (!keyword || keyword.trim() === '') &&
-      (!filters ||
-        (filters.category === undefined &&
-          filters.minPrice === undefined &&
-          filters.maxPrice === undefined &&
-          filters.minRating === undefined &&
-          filters.inStock === undefined))
-    ) {
-      return res
-        .status(400)
-        .json({ message: 'Provide at least a keyword or one filter to save a search' });
+        // At least keyword or one filter should be provided
+        if (
+            (!keyword || keyword.trim() === '') &&
+            (!filters ||
+                (filters.category === undefined &&
+                    filters.minPrice === undefined &&
+                    filters.maxPrice === undefined &&
+                    filters.minRating === undefined &&
+                    filters.inStock === undefined))
+        ) {
+            return res
+                .status(400)
+                .json({ message: 'Provide at least a keyword or one filter to save a search' });
+        }
+
+        // Validate category ID if provided
+        let categoryObjId = null;
+        if (filters && filters.category) {
+            if (!mongoose.Types.ObjectId.isValid(filters.category)) {
+                return res.status(400).json({ message: 'Invalid category ID in filters' });
+            }
+            categoryObjId = mongoose.Types.ObjectId(filters.category);
+        }
+
+        // Build filters object
+        const savedFilters = {};
+        if (categoryObjId) savedFilters.category = categoryObjId;
+        if (filters.minPrice !== undefined) savedFilters.minPrice = Number(filters.minPrice);
+        if (filters.maxPrice !== undefined) savedFilters.maxPrice = Number(filters.maxPrice);
+        if (filters.minRating !== undefined) savedFilters.minRating = Number(filters.minRating);
+        if (filters.inStock !== undefined) savedFilters.inStock = Boolean(filters.inStock);
+
+        const newSavedSearch = new SavedSearch({
+            user: userId,
+            keyword: keyword ? keyword.trim() : undefined,
+            filters: savedFilters,
+        });
+
+        const created = await newSavedSearch.save();
+        return res.status(201).json(created);
+    } catch (err) {
+        console.error('Error in POST /api/saved-searches:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-
-    // Validate category ID if provided
-    let categoryObjId = null;
-    if (filters && filters.category) {
-      if (!mongoose.Types.ObjectId.isValid(filters.category)) {
-        return res.status(400).json({ message: 'Invalid category ID in filters' });
-      }
-      categoryObjId = mongoose.Types.ObjectId(filters.category);
-    }
-
-    // Build filters object
-    const savedFilters = {};
-    if (categoryObjId) savedFilters.category = categoryObjId;
-    if (filters.minPrice !== undefined) savedFilters.minPrice = Number(filters.minPrice);
-    if (filters.maxPrice !== undefined) savedFilters.maxPrice = Number(filters.maxPrice);
-    if (filters.minRating !== undefined) savedFilters.minRating = Number(filters.minRating);
-    if (filters.inStock !== undefined) savedFilters.inStock = Boolean(filters.inStock);
-
-    const newSavedSearch = new SavedSearch({
-      user: userId,
-      keyword: keyword ? keyword.trim() : undefined,
-      filters: savedFilters,
-    });
-
-    const created = await newSavedSearch.save();
-    return res.status(201).json(created);
-  } catch (err) {
-    console.error('Error in POST /api/saved-searches:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // 2.2 Get all saved searches for the current user
 //    GET /api/saved-searches
 //    Protected
 app.get('/api/saved-searches', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const searches = await SavedSearch.find({ user: userId }).sort({ createdAt: -1 });
-    return res.json(searches);
-  } catch (err) {
-    console.error('Error in GET /api/saved-searches:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
+    try {
+        const userId = req.user._id;
+        const searches = await SavedSearch.find({ user: userId }).sort({ createdAt: -1 });
+        return res.json(searches);
+    } catch (err) {
+        console.error('Error in GET /api/saved-searches:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // 2.3 Delete a saved search
 //    DELETE /api/saved-searches/:id
 //    Protected
 app.delete('/api/saved-searches/:id', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const searchId = req.params.id;
+    try {
+        const userId = req.user._id;
+        const searchId = req.params.id;
 
-    if (!mongoose.Types.ObjectId.isValid(searchId)) {
-      return res.status(400).json({ message: 'Invalid saved search ID' });
-    }
+        if (!mongoose.Types.ObjectId.isValid(searchId)) {
+            return res.status(400).json({ message: 'Invalid saved search ID' });
+        }
 
-    const search = await SavedSearch.findById(searchId);
-    if (!search) {
-      return res.status(404).json({ message: 'Saved search not found' });
-    }
-    if (search.user.toString() !== userId.toString()) {
-      return res.status(403).json({ message: 'Not authorized to delete this saved search' });
-    }
+        const search = await SavedSearch.findById(searchId);
+        if (!search) {
+            return res.status(404).json({ message: 'Saved search not found' });
+        }
+        if (search.user.toString() !== userId.toString()) {
+            return res.status(403).json({ message: 'Not authorized to delete this saved search' });
+        }
 
-    await search.remove();
-    return res.json({ message: 'Saved search deleted successfully' });
-  } catch (err) {
-    console.error('Error in DELETE /api/saved-searches/:id:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
+        await search.remove();
+        return res.json({ message: 'Saved search deleted successfully' });
+    } catch (err) {
+        console.error('Error in DELETE /api/saved-searches/:id:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // -----------------------------------------------------------------------------
@@ -1003,64 +1290,64 @@ app.delete('/api/saved-searches/:id', protect, async (req, res) => {
 //    Body: { product: productId (required), targetPrice (required) }
 //    Protected
 app.post('/api/price-alerts', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { product, targetPrice } = req.body;
+    try {
+        const userId = req.user._id;
+        const { product, targetPrice } = req.body;
 
-    if (!product || !mongoose.Types.ObjectId.isValid(product)) {
-      return res.status(400).json({ message: 'Valid product ID is required' });
+        if (!product || !mongoose.Types.ObjectId.isValid(product)) {
+            return res.status(400).json({ message: 'Valid product ID is required' });
+        }
+        if (targetPrice === undefined || isNaN(Number(targetPrice)) || Number(targetPrice) < 0) {
+            return res.status(400).json({ message: 'Valid target price is required' });
+        }
+
+        // Ensure product exists
+        const productExists = await Product.findById(product);
+        if (!productExists) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        // Prevent duplicate alerts for the same product & user
+        const existing = await PriceAlert.findOne({
+            user: userId,
+            product: mongoose.Types.ObjectId(product),
+            isActive: true,
+        });
+        if (existing) {
+            return res
+                .status(400)
+                .json({ message: 'An active price alert for this product already exists' });
+        }
+
+        const newAlert = new PriceAlert({
+            user: userId,
+            product: mongoose.Types.ObjectId(product),
+            targetPrice: Number(targetPrice),
+            isActive: true,
+        });
+
+        const created = await newAlert.save();
+        return res.status(201).json(created);
+    } catch (err) {
+        console.error('Error in POST /api/price-alerts:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-    if (targetPrice === undefined || isNaN(Number(targetPrice)) || Number(targetPrice) < 0) {
-      return res.status(400).json({ message: 'Valid target price is required' });
-    }
-
-    // Ensure product exists
-    const productExists = await Product.findById(product);
-    if (!productExists) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
-    // Prevent duplicate alerts for the same product & user
-    const existing = await PriceAlert.findOne({
-      user: userId,
-      product: mongoose.Types.ObjectId(product),
-      isActive: true,
-    });
-    if (existing) {
-      return res
-        .status(400)
-        .json({ message: 'An active price alert for this product already exists' });
-    }
-
-    const newAlert = new PriceAlert({
-      user: userId,
-      product: mongoose.Types.ObjectId(product),
-      targetPrice: Number(targetPrice),
-      isActive: true,
-    });
-
-    const created = await newAlert.save();
-    return res.status(201).json(created);
-  } catch (err) {
-    console.error('Error in POST /api/price-alerts:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // 3.2 Get all price alerts for the current user
 //    GET /api/price-alerts
 //    Protected
 app.get('/api/price-alerts', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const alerts = await PriceAlert.find({ user: userId })
-      .populate('product', 'name price images')
-      .sort({ createdAt: -1 });
-    return res.json(alerts);
-  } catch (err) {
-    console.error('Error in GET /api/price-alerts:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
+    try {
+        const userId = req.user._id;
+        const alerts = await PriceAlert.find({ user: userId })
+            .populate('product', 'name price images')
+            .sort({ createdAt: -1 });
+        return res.json(alerts);
+    } catch (err) {
+        console.error('Error in GET /api/price-alerts:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // 3.3 Update a price alert (e.g., change targetPrice or toggle isActive)
@@ -1068,67 +1355,67 @@ app.get('/api/price-alerts', protect, async (req, res) => {
 //    Body: { targetPrice (optional), isActive (optional) }
 //    Protected
 app.put('/api/price-alerts/:id', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const alertId = req.params.id;
-    const { targetPrice, isActive } = req.body;
+    try {
+        const userId = req.user._id;
+        const alertId = req.params.id;
+        const { targetPrice, isActive } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(alertId)) {
-      return res.status(400).json({ message: 'Invalid price alert ID' });
-    }
+        if (!mongoose.Types.ObjectId.isValid(alertId)) {
+            return res.status(400).json({ message: 'Invalid price alert ID' });
+        }
 
-    const alert = await PriceAlert.findById(alertId);
-    if (!alert) {
-      return res.status(404).json({ message: 'Price alert not found' });
-    }
-    if (alert.user.toString() !== userId.toString()) {
-      return res.status(403).json({ message: 'Not authorized to update this price alert' });
-    }
+        const alert = await PriceAlert.findById(alertId);
+        if (!alert) {
+            return res.status(404).json({ message: 'Price alert not found' });
+        }
+        if (alert.user.toString() !== userId.toString()) {
+            return res.status(403).json({ message: 'Not authorized to update this price alert' });
+        }
 
-    if (targetPrice !== undefined) {
-      if (isNaN(Number(targetPrice)) || Number(targetPrice) < 0) {
-        return res.status(400).json({ message: 'Valid target price is required' });
-      }
-      alert.targetPrice = Number(targetPrice);
-    }
-    if (isActive !== undefined) {
-      alert.isActive = Boolean(isActive);
-    }
+        if (targetPrice !== undefined) {
+            if (isNaN(Number(targetPrice)) || Number(targetPrice) < 0) {
+                return res.status(400).json({ message: 'Valid target price is required' });
+            }
+            alert.targetPrice = Number(targetPrice);
+        }
+        if (isActive !== undefined) {
+            alert.isActive = Boolean(isActive);
+        }
 
-    const updated = await alert.save();
-    return res.json(updated);
-  } catch (err) {
-    console.error('Error in PUT /api/price-alerts/:id:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
+        const updated = await alert.save();
+        return res.json(updated);
+    } catch (err) {
+        console.error('Error in PUT /api/price-alerts/:id:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // 3.4 Delete a price alert
 //    DELETE /api/price-alerts/:id
 //    Protected
 app.delete('/api/price-alerts/:id', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const alertId = req.params.id;
+    try {
+        const userId = req.user._id;
+        const alertId = req.params.id;
 
-    if (!mongoose.Types.ObjectId.isValid(alertId)) {
-      return res.status(400).json({ message: 'Invalid price alert ID' });
-    }
+        if (!mongoose.Types.ObjectId.isValid(alertId)) {
+            return res.status(400).json({ message: 'Invalid price alert ID' });
+        }
 
-    const alert = await PriceAlert.findById(alertId);
-    if (!alert) {
-      return res.status(404).json({ message: 'Price alert not found' });
-    }
-    if (alert.user.toString() !== userId.toString()) {
-      return res.status(403).json({ message: 'Not authorized to delete this price alert' });
-    }
+        const alert = await PriceAlert.findById(alertId);
+        if (!alert) {
+            return res.status(404).json({ message: 'Price alert not found' });
+        }
+        if (alert.user.toString() !== userId.toString()) {
+            return res.status(403).json({ message: 'Not authorized to delete this price alert' });
+        }
 
-    await alert.remove();
-    return res.json({ message: 'Price alert deleted successfully' });
-  } catch (err) {
-    console.error('Error in DELETE /api/price-alerts/:id:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
+        await alert.remove();
+        return res.json({ message: 'Price alert deleted successfully' });
+    } catch (err) {
+        console.error('Error in DELETE /api/price-alerts/:id:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // ---------------------------------------
@@ -1136,25 +1423,25 @@ app.delete('/api/price-alerts/:id', protect, async (req, res) => {
 //    - Retrieve current user's cart (protected)
 // ---------------------------------------
 app.get('/api/cart', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
+    try {
+        const userId = req.user._id;
 
-    // Find or create the user's cart
-    let cart = await Cart.findOne({ user: userId }).populate({
-      path: 'items.product',
-      select: 'name price images countInStock',
-    });
+        // Find or create the user's cart
+        let cart = await Cart.findOne({ user: userId }).populate({
+            path: 'items.product',
+            select: 'name price images countInStock',
+        });
 
-    if (!cart) {
-      // If no cart exists yet, return an empty structure
-      return res.json({ items: [] });
+        if (!cart) {
+            // If no cart exists yet, return an empty structure
+            return res.json({ items: [] });
+        }
+
+        return res.json(cart);
+    } catch (err) {
+        console.error('Error in GET /api/cart:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-
-    return res.json(cart);
-  } catch (err) {
-    console.error('Error in GET /api/cart:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // ---------------------------------------
@@ -1163,69 +1450,69 @@ app.get('/api/cart', protect, async (req, res) => {
 //    - Body: { productId: string, quantity: number }
 // ---------------------------------------
 app.post('/api/cart', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { productId, quantity } = req.body;
+    try {
+        const userId = req.user._id;
+        const { productId, quantity } = req.body;
 
-    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ message: 'Valid productId is required' });
+        if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Valid productId is required' });
+        }
+        const qty = Number(quantity);
+        if (!qty || qty < 1) {
+            return res.status(400).json({ message: 'Quantity must be at least 1' });
+        }
+
+        // Fetch product to validate existence and get current price and stock
+        const product = await Product.findById(productId).select('price countInStock');
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+        if (product.countInStock < qty) {
+            return res.status(400).json({ message: 'Requested quantity exceeds stock' });
+        }
+
+        // Find or create cart
+        let cart = await Cart.findOne({ user: userId });
+        if (!cart) {
+            cart = new Cart({ user: userId, items: [] });
+        }
+
+        // Check if item already in cart
+        const existingIndex = cart.items.findIndex((item) =>
+            item.product.equals(productId)
+        );
+        if (existingIndex > -1) {
+            // Update quantity
+            const newQty = cart.items[existingIndex].quantity + qty;
+            if (product.countInStock < newQty) {
+                return res
+                    .status(400)
+                    .json({ message: 'Total quantity in cart exceeds stock' });
+            }
+            cart.items[existingIndex].quantity = newQty;
+        } else {
+            // Add new item
+            cart.items.push({
+                product: mongoose.Types.ObjectId(productId),
+                quantity: qty,
+                priceAtAddition: product.price,
+            });
+        }
+
+        cart.updatedAt = Date.now();
+        const updatedCart = await cart.save();
+
+        // Populate product details for response
+        const populatedCart = await Cart.findById(updatedCart._id).populate({
+            path: 'items.product',
+            select: 'name price images countInStock',
+        });
+
+        return res.status(201).json(populatedCart);
+    } catch (err) {
+        console.error('Error in POST /api/cart:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-    const qty = Number(quantity);
-    if (!qty || qty < 1) {
-      return res.status(400).json({ message: 'Quantity must be at least 1' });
-    }
-
-    // Fetch product to validate existence and get current price and stock
-    const product = await Product.findById(productId).select('price countInStock');
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-    if (product.countInStock < qty) {
-      return res.status(400).json({ message: 'Requested quantity exceeds stock' });
-    }
-
-    // Find or create cart
-    let cart = await Cart.findOne({ user: userId });
-    if (!cart) {
-      cart = new Cart({ user: userId, items: [] });
-    }
-
-    // Check if item already in cart
-    const existingIndex = cart.items.findIndex((item) =>
-      item.product.equals(productId)
-    );
-    if (existingIndex > -1) {
-      // Update quantity
-      const newQty = cart.items[existingIndex].quantity + qty;
-      if (product.countInStock < newQty) {
-        return res
-          .status(400)
-          .json({ message: 'Total quantity in cart exceeds stock' });
-      }
-      cart.items[existingIndex].quantity = newQty;
-    } else {
-      // Add new item
-      cart.items.push({
-        product: mongoose.Types.ObjectId(productId),
-        quantity: qty,
-        priceAtAddition: product.price,
-      });
-    }
-
-    cart.updatedAt = Date.now();
-    const updatedCart = await cart.save();
-
-    // Populate product details for response
-    const populatedCart = await Cart.findById(updatedCart._id).populate({
-      path: 'items.product',
-      select: 'name price images countInStock',
-    });
-
-    return res.status(201).json(populatedCart);
-  } catch (err) {
-    console.error('Error in POST /api/cart:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // ---------------------------------------
@@ -1234,56 +1521,56 @@ app.post('/api/cart', protect, async (req, res) => {
 //    - Body: { productId: string, quantity: number }
 // ---------------------------------------
 app.put('/api/cart', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { productId, quantity } = req.body;
+    try {
+        const userId = req.user._id;
+        const { productId, quantity } = req.body;
 
-    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ message: 'Valid productId is required' });
+        if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Valid productId is required' });
+        }
+        const qty = Number(quantity);
+        if (qty < 1) {
+            return res.status(400).json({ message: 'Quantity must be at least 1' });
+        }
+
+        // Fetch product to check stock
+        const product = await Product.findById(productId).select('countInStock');
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+        if (product.countInStock < qty) {
+            return res.status(400).json({ message: 'Requested quantity exceeds stock' });
+        }
+
+        // Find cart
+        const cart = await Cart.findOne({ user: userId });
+        if (!cart) {
+            return res.status(404).json({ message: 'Cart not found' });
+        }
+
+        const itemIndex = cart.items.findIndex((item) =>
+            item.product.equals(productId)
+        );
+        if (itemIndex === -1) {
+            return res.status(404).json({ message: 'Product not found in cart' });
+        }
+
+        // Update quantity
+        cart.items[itemIndex].quantity = qty;
+        cart.updatedAt = Date.now();
+        const updatedCart = await cart.save();
+
+        // Populate for response
+        const populatedCart = await Cart.findById(updatedCart._id).populate({
+            path: 'items.product',
+            select: 'name price images countInStock',
+        });
+
+        return res.json(populatedCart);
+    } catch (err) {
+        console.error('Error in PUT /api/cart:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-    const qty = Number(quantity);
-    if (qty < 1) {
-      return res.status(400).json({ message: 'Quantity must be at least 1' });
-    }
-
-    // Fetch product to check stock
-    const product = await Product.findById(productId).select('countInStock');
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-    if (product.countInStock < qty) {
-      return res.status(400).json({ message: 'Requested quantity exceeds stock' });
-    }
-
-    // Find cart
-    const cart = await Cart.findOne({ user: userId });
-    if (!cart) {
-      return res.status(404).json({ message: 'Cart not found' });
-    }
-
-    const itemIndex = cart.items.findIndex((item) =>
-      item.product.equals(productId)
-    );
-    if (itemIndex === -1) {
-      return res.status(404).json({ message: 'Product not found in cart' });
-    }
-
-    // Update quantity
-    cart.items[itemIndex].quantity = qty;
-    cart.updatedAt = Date.now();
-    const updatedCart = await cart.save();
-
-    // Populate for response
-    const populatedCart = await Cart.findById(updatedCart._id).populate({
-      path: 'items.product',
-      select: 'name price images countInStock',
-    });
-
-    return res.json(populatedCart);
-  } catch (err) {
-    console.error('Error in PUT /api/cart:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // ---------------------------------------
@@ -1291,42 +1578,42 @@ app.put('/api/cart', protect, async (req, res) => {
 //    - Remove a single product from cart (protected)
 // ---------------------------------------
 app.delete('/api/cart/:productId', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { productId } = req.params;
+    try {
+        const userId = req.user._id;
+        const { productId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ message: 'Invalid productId' });
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Invalid productId' });
+        }
+
+        const cart = await Cart.findOne({ user: userId });
+        if (!cart) {
+            return res.status(404).json({ message: 'Cart not found' });
+        }
+
+        const itemIndex = cart.items.findIndex((item) =>
+            item.product.equals(productId)
+        );
+        if (itemIndex === -1) {
+            return res.status(404).json({ message: 'Product not found in cart' });
+        }
+
+        // Remove item
+        cart.items.splice(itemIndex, 1);
+        cart.updatedAt = Date.now();
+        const updatedCart = await cart.save();
+
+        // Populate for response
+        const populatedCart = await Cart.findById(updatedCart._id).populate({
+            path: 'items.product',
+            select: 'name price images countInStock',
+        });
+
+        return res.json(populatedCart);
+    } catch (err) {
+        console.error('Error in DELETE /api/cart/:productId:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-
-    const cart = await Cart.findOne({ user: userId });
-    if (!cart) {
-      return res.status(404).json({ message: 'Cart not found' });
-    }
-
-    const itemIndex = cart.items.findIndex((item) =>
-      item.product.equals(productId)
-    );
-    if (itemIndex === -1) {
-      return res.status(404).json({ message: 'Product not found in cart' });
-    }
-
-    // Remove item
-    cart.items.splice(itemIndex, 1);
-    cart.updatedAt = Date.now();
-    const updatedCart = await cart.save();
-
-    // Populate for response
-    const populatedCart = await Cart.findById(updatedCart._id).populate({
-      path: 'items.product',
-      select: 'name price images countInStock',
-    });
-
-    return res.json(populatedCart);
-  } catch (err) {
-    console.error('Error in DELETE /api/cart/:productId:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // ---------------------------------------
@@ -1334,22 +1621,22 @@ app.delete('/api/cart/:productId', protect, async (req, res) => {
 //    - Clear entire cart (protected)
 // ---------------------------------------
 app.delete('/api/cart', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const cart = await Cart.findOne({ user: userId });
-    if (!cart) {
-      return res.status(404).json({ message: 'Cart not found' });
+    try {
+        const userId = req.user._id;
+        const cart = await Cart.findOne({ user: userId });
+        if (!cart) {
+            return res.status(404).json({ message: 'Cart not found' });
+        }
+
+        cart.items = [];
+        cart.updatedAt = Date.now();
+        await cart.save();
+
+        return res.json({ message: 'Cart cleared' });
+    } catch (err) {
+        console.error('Error in DELETE /api/cart:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-
-    cart.items = [];
-    cart.updatedAt = Date.now();
-    await cart.save();
-
-    return res.json({ message: 'Cart cleared' });
-  } catch (err) {
-    console.error('Error in DELETE /api/cart:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // ---------------------------------------
@@ -1358,31 +1645,31 @@ app.delete('/api/cart', protect, async (req, res) => {
 //    - Optional query params: page, limit
 // ---------------------------------------
 app.get('/api/orders/myorders', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const pageSize = Number(req.query.limit) || 20;
-    const page = Number(req.query.page) || 1;
+    try {
+        const userId = req.user._id;
+        const pageSize = Number(req.query.limit) || 20;
+        const page = Number(req.query.page) || 1;
 
-    // Count total orders for pagination
-    const total = await Order.countDocuments({ user: userId });
+        // Count total orders for pagination
+        const total = await Order.countDocuments({ user: userId });
 
-    // Fetch orders sorted by most recent
-    const orders = await Order.find({ user: userId })
-      .sort({ createdAt: -1 })
-      .skip(pageSize * (page - 1))
-      .limit(pageSize)
-      .select('orderItems totalPrice isPaid paidAt isDelivered deliveredAt createdAt');
+        // Fetch orders sorted by most recent
+        const orders = await Order.find({ user: userId })
+            .sort({ createdAt: -1 })
+            .skip(pageSize * (page - 1))
+            .limit(pageSize)
+            .select('orderItems totalPrice isPaid paidAt isDelivered deliveredAt createdAt');
 
-    return res.json({
-      orders,
-      page,
-      pages: Math.ceil(total / pageSize),
-      total,
-    });
-  } catch (err) {
-    console.error('Error in GET /api/orders/myorders:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
+        return res.json({
+            orders,
+            page,
+            pages: Math.ceil(total / pageSize),
+            total,
+        });
+    } catch (err) {
+        console.error('Error in GET /api/orders/myorders:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
 });
 
 // ---------------------------------------
@@ -1390,36 +1677,36 @@ app.get('/api/orders/myorders', protect, async (req, res) => {
 //    - Retrieve details of a specific past order for the authenticated user
 // ---------------------------------------
 app.get('/api/orders/myorders/:id', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const orderId = req.params.id;
+    try {
+        const userId = req.user._id;
+        const orderId = req.params.id;
 
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      return res.status(400).json({ message: 'Invalid order ID' });
+        if (!mongoose.Types.ObjectId.isValid(orderId)) {
+            return res.status(400).json({ message: 'Invalid order ID' });
+        }
+
+        const order = await Order.findById(orderId)
+            .populate({
+                path: 'orderItems.product',
+                select: 'name price images',
+            })
+            .populate({
+                path: 'user',
+                select: 'name email',
+            });
+
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+        if (order.user._id.toString() !== userId.toString()) {
+            return res.status(403).json({ message: 'Access denied: Not your order' });
+        }
+
+        return res.json(order);
+    } catch (err) {
+        console.error('Error in GET /api/orders/myorders/:id:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-
-    const order = await Order.findById(orderId)
-      .populate({
-        path: 'orderItems.product',
-        select: 'name price images',
-      })
-      .populate({
-        path: 'user',
-        select: 'name email',
-      });
-
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-    if (order.user._id.toString() !== userId.toString()) {
-      return res.status(403).json({ message: 'Access denied: Not your order' });
-    }
-
-    return res.json(order);
-  } catch (err) {
-    console.error('Error in GET /api/orders/myorders/:id:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // ---------------------------------------
@@ -1427,125 +1714,125 @@ app.get('/api/orders/myorders/:id', protect, async (req, res) => {
 //    - Retrieve any order by ID (admin only)
 // ---------------------------------------
 app.get('/api/orders/:id', protect, async (req, res) => {
-  try {
-    const user = req.user;
-    if (user.role !== 'admin') {
-      return res.status(403).json({ message: 'Access denied: Admins only' });
+    try {
+        const user = req.user;
+        if (user.role !== 'admin') {
+            return res.status(403).json({ message: 'Access denied: Admins only' });
+        }
+
+        const orderId = req.params.id;
+        if (!mongoose.Types.ObjectId.isValid(orderId)) {
+            return res.status(400).json({ message: 'Invalid order ID' });
+        }
+
+        const order = await Order.findById(orderId)
+            .populate({
+                path: 'orderItems.product',
+                select: 'name price images',
+            })
+            .populate({
+                path: 'user',
+                select: 'name email',
+            });
+
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+
+        return res.json(order);
+    } catch (err) {
+        console.error('Error in GET /api/orders/:id (admin):', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-
-    const orderId = req.params.id;
-    if (!mongoose.Types.ObjectId.isValid(orderId)) {
-      return res.status(400).json({ message: 'Invalid order ID' });
-    }
-
-    const order = await Order.findById(orderId)
-      .populate({
-        path: 'orderItems.product',
-        select: 'name price images',
-      })
-      .populate({
-        path: 'user',
-        select: 'name email',
-      });
-
-    if (!order) {
-      return res.status(404).json({ message: 'Order not found' });
-    }
-
-    return res.json(order);
-  } catch (err) {
-    console.error('Error in GET /api/orders/:id (admin):', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 const server = http.createServer(app);
 
 const io = new Server(server, {
-  cors: {
-    origin: '*',       // adjust in production to your frontend URL
-    methods: ['GET', 'POST'],
-  },
+    cors: {
+        origin: '*',       // adjust in production to your frontend URL
+        methods: ['GET', 'POST'],
+    },
 });
 
 // ---------------------------------------
 // 2. Socket Authentication Middleware
 // ---------------------------------------
 io.use(async (socket, next) => {
-  try {
-    const token = socket.handshake.auth.token;
-    if (!token) {
-      return next(new Error('Authentication error: Token required'));
+    try {
+        const token = socket.handshake.auth.token;
+        if (!token) {
+            return next(new Error('Authentication error: Token required'));
+        }
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecret');
+        const user = await User.findById(decoded.id).select('-passwordHash');
+        if (!user) {
+            return next(new Error('Authentication error: User not found'));
+        }
+        socket.user = user; // attach the user object to socket
+        next();
+    } catch (err) {
+        return next(new Error('Authentication error: Invalid token'));
     }
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecret');
-    const user = await User.findById(decoded.id).select('-passwordHash');
-    if (!user) {
-      return next(new Error('Authentication error: User not found'));
-    }
-    socket.user = user; // attach the user object to socket
-    next();
-  } catch (err) {
-    return next(new Error('Authentication error: Invalid token'));
-  }
 });
 
 // ---------------------------------------
 // 3. Socket.IO Event Handling
 // ---------------------------------------
 io.on('connection', (socket) => {
-  const currentUser = socket.user; // { _id, name, email, role, ... }
+    const currentUser = socket.user; // { _id, name, email, role, ... }
 
-  // Clients can join a "room" named after their user ID to receive direct messages
-  socket.join(currentUser._id.toString());
+    // Clients can join a "room" named after their user ID to receive direct messages
+    socket.join(currentUser._id.toString());
 
-  // Handle incoming direct messages
-  // Client emits: 'directMessage', payload: { toUserId: string, content: string }
-  socket.on('directMessage', async (payload) => {
-    try {
-      const { toUserId, content } = payload;
-      if (!mongoose.Types.ObjectId.isValid(toUserId) || !content || content.trim() === '') {
-        socket.emit('error', { message: 'Invalid payload for directMessage' });
-        return;
-      }
+    // Handle incoming direct messages
+    // Client emits: 'directMessage', payload: { toUserId: string, content: string }
+    socket.on('directMessage', async (payload) => {
+        try {
+            const { toUserId, content } = payload;
+            if (!mongoose.Types.ObjectId.isValid(toUserId) || !content || content.trim() === '') {
+                socket.emit('error', { message: 'Invalid payload for directMessage' });
+                return;
+            }
 
-      // Validate that `toUserId` corresponds to an existing user
-      const receiver = await User.findById(toUserId);
-      if (!receiver) {
-        socket.emit('error', { message: 'Receiver not found' });
-        return;
-      }
+            // Validate that `toUserId` corresponds to an existing user
+            const receiver = await User.findById(toUserId);
+            if (!receiver) {
+                socket.emit('error', { message: 'Receiver not found' });
+                return;
+            }
 
-      // Create and save the chat message in MongoDB
-      const chatMsg = new ChatMessage({
-        sender: currentUser._id,
-        receiver: toUserId,
-        content: content.trim(),
-      });
-      await chatMsg.save();
+            // Create and save the chat message in MongoDB
+            const chatMsg = new ChatMessage({
+                sender: currentUser._id,
+                receiver: toUserId,
+                content: content.trim(),
+            });
+            await chatMsg.save();
 
-      const msgData = {
-        _id: chatMsg._id,
-        sender: currentUser._id,
-        receiver: toUserId,
-        content: chatMsg.content,
-        timestamp: chatMsg.timestamp,
-      };
+            const msgData = {
+                _id: chatMsg._id,
+                sender: currentUser._id,
+                receiver: toUserId,
+                content: chatMsg.content,
+                timestamp: chatMsg.timestamp,
+            };
 
-      // Emit the message to the receiver's room
-      io.to(toUserId).emit('newDirectMessage', msgData);
+            // Emit the message to the receiver's room
+            io.to(toUserId).emit('newDirectMessage', msgData);
 
-      // Also emit back to the sender so they see their own message in the chat window
-      io.to(currentUser._id.toString()).emit('newDirectMessage', msgData);
-    } catch (err) {
-      console.error('Error handling directMessage:', err);
-      socket.emit('error', { message: 'Server error sending message' });
-    }
-  });
+            // Also emit back to the sender so they see their own message in the chat window
+            io.to(currentUser._id.toString()).emit('newDirectMessage', msgData);
+        } catch (err) {
+            console.error('Error handling directMessage:', err);
+            socket.emit('error', { message: 'Server error sending message' });
+        }
+    });
 
-  // Clean up on disconnect
-  socket.on('disconnect', () => {
-    socket.leave(currentUser._id.toString());
-  });
+    // Clean up on disconnect
+    socket.on('disconnect', () => {
+        socket.leave(currentUser._id.toString());
+    });
 });
 
 // ---------------------------------------
@@ -1556,35 +1843,35 @@ io.on('connection', (socket) => {
 //    - Retrieve full chat history between authenticated user and `:otherUserId`
 //    - Protected via `protect` middleware
 app.get('/api/chats/:otherUserId', protect, async (req, res) => {
-  try {
-    const userId = req.user._id.toString();
-    const otherUserId = req.params.otherUserId;
+    try {
+        const userId = req.user._id.toString();
+        const otherUserId = req.params.otherUserId;
 
-    if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
-      return res.status(400).json({ message: 'Invalid user ID' });
+        if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
+            return res.status(400).json({ message: 'Invalid user ID' });
+        }
+
+        // Ensure the other user exists
+        const otherUser = await User.findById(otherUserId);
+        if (!otherUser) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Fetch messages where (sender = userId AND receiver = otherUserId) OR vice versa
+        const messages = await ChatMessage.find({
+            $or: [
+                { sender: mongoose.Types.ObjectId(userId), receiver: mongoose.Types.ObjectId(otherUserId) },
+                { sender: mongoose.Types.ObjectId(otherUserId), receiver: mongoose.Types.ObjectId(userId) },
+            ],
+        })
+            .sort({ timestamp: 1 }) // chronological order
+            .lean();
+
+        return res.json({ messages });
+    } catch (err) {
+        console.error('Error in GET /api/chats/:otherUserId:', err);
+        return res.status(500).json({ message: 'Server error fetching chat history' });
     }
-
-    // Ensure the other user exists
-    const otherUser = await User.findById(otherUserId);
-    if (!otherUser) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Fetch messages where (sender = userId AND receiver = otherUserId) OR vice versa
-    const messages = await ChatMessage.find({
-      $or: [
-        { sender: mongoose.Types.ObjectId(userId), receiver: mongoose.Types.ObjectId(otherUserId) },
-        { sender: mongoose.Types.ObjectId(otherUserId), receiver: mongoose.Types.ObjectId(userId) },
-      ],
-    })
-      .sort({ timestamp: 1 }) // chronological order
-      .lean();
-
-    return res.json({ messages });
-  } catch (err) {
-    console.error('Error in GET /api/chats/:otherUserId:', err);
-    return res.status(500).json({ message: 'Server error fetching chat history' });
-  }
 });
 
 
@@ -1595,59 +1882,59 @@ app.get('/api/chats/:otherUserId', protect, async (req, res) => {
 //    - After creating a review, update product’s numReviews & avg rating
 // ---------------------------------------
 app.post('/api/products/:id/reviews', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const productId = req.params.id;
-    const { rating, comment } = req.body;
+    try {
+        const userId = req.user._id;
+        const productId = req.params.id;
+        const { rating, comment } = req.body;
 
-    // Validate product ID
-    if (!mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ message: 'Invalid product ID' });
+        // Validate product ID
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Invalid product ID' });
+        }
+        const product = await Product.findById(productId);
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        // Validate rating
+        const numericRating = Number(rating);
+        if (!numericRating || numericRating < 1 || numericRating > 5) {
+            return res.status(400).json({ message: 'Rating must be an integer between 1 and 5' });
+        }
+
+        // Check if user already submitted a review for this product
+        const existingReview = await Review.findOne({
+            user: userId,
+            product: productId,
+        });
+        if (existingReview) {
+            return res.status(400).json({ message: 'You have already reviewed this product' });
+        }
+
+        // Create and save new review
+        const newReview = new Review({
+            user: userId,
+            product: productId,
+            rating: numericRating,
+            comment: comment ? comment.trim() : '',
+        });
+        await newReview.save();
+
+        // Recalculate product’s numReviews and average rating
+        const allReviews = await Review.find({ product: productId }).select('rating');
+        const numReviews = allReviews.length;
+        const avgRating =
+            allReviews.reduce((acc, r) => acc + r.rating, 0) / numReviews;
+
+        product.numReviews = numReviews;
+        product.rating = avgRating;
+        await product.save();
+
+        return res.status(201).json({ message: 'Review submitted successfully' });
+    } catch (err) {
+        console.error('Error in POST /api/products/:id/reviews:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-    const product = await Product.findById(productId);
-    if (!product) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
-    // Validate rating
-    const numericRating = Number(rating);
-    if (!numericRating || numericRating < 1 || numericRating > 5) {
-      return res.status(400).json({ message: 'Rating must be an integer between 1 and 5' });
-    }
-
-    // Check if user already submitted a review for this product
-    const existingReview = await Review.findOne({
-      user: userId,
-      product: productId,
-    });
-    if (existingReview) {
-      return res.status(400).json({ message: 'You have already reviewed this product' });
-    }
-
-    // Create and save new review
-    const newReview = new Review({
-      user: userId,
-      product: productId,
-      rating: numericRating,
-      comment: comment ? comment.trim() : '',
-    });
-    await newReview.save();
-
-    // Recalculate product’s numReviews and average rating
-    const allReviews = await Review.find({ product: productId }).select('rating');
-    const numReviews = allReviews.length;
-    const avgRating =
-      allReviews.reduce((acc, r) => acc + r.rating, 0) / numReviews;
-
-    product.numReviews = numReviews;
-    product.rating = avgRating;
-    await product.save();
-
-    return res.status(201).json({ message: 'Review submitted successfully' });
-  } catch (err) {
-    console.error('Error in POST /api/products/:id/reviews:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // ---------------------------------------
@@ -1656,40 +1943,40 @@ app.post('/api/products/:id/reviews', protect, async (req, res) => {
 //    - Query Params: page, limit
 // ---------------------------------------
 app.get('/api/products/:id/reviews', async (req, res) => {
-  try {
-    const productId = req.params.id;
-    const pageSize = Number(req.query.limit) || 20;
-    const page = Number(req.query.page) || 1;
+    try {
+        const productId = req.params.id;
+        const pageSize = Number(req.query.limit) || 20;
+        const page = Number(req.query.page) || 1;
 
-    // Validate product ID
-    if (!mongoose.Types.ObjectId.isValid(productId)) {
-      return res.status(400).json({ message: 'Invalid product ID' });
+        // Validate product ID
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Invalid product ID' });
+        }
+        const productExists = await Product.findById(productId);
+        if (!productExists) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        // Count total reviews for pagination
+        const total = await Review.countDocuments({ product: productId });
+
+        // Fetch reviews, populate user’s name for display
+        const reviews = await Review.find({ product: productId })
+            .sort({ createdAt: -1 })
+            .skip(pageSize * (page - 1))
+            .limit(pageSize)
+            .populate('user', 'name');
+
+        return res.json({
+            reviews,
+            page,
+            pages: Math.ceil(total / pageSize),
+            total,
+        });
+    } catch (err) {
+        console.error('Error in GET /api/products/:id/reviews:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-    const productExists = await Product.findById(productId);
-    if (!productExists) {
-      return res.status(404).json({ message: 'Product not found' });
-    }
-
-    // Count total reviews for pagination
-    const total = await Review.countDocuments({ product: productId });
-
-    // Fetch reviews, populate user’s name for display
-    const reviews = await Review.find({ product: productId })
-      .sort({ createdAt: -1 })
-      .skip(pageSize * (page - 1))
-      .limit(pageSize)
-      .populate('user', 'name');
-
-    return res.json({
-      reviews,
-      page,
-      pages: Math.ceil(total / pageSize),
-      total,
-    });
-  } catch (err) {
-    console.error('Error in GET /api/products/:id/reviews:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // ---------------------------------------
@@ -1697,47 +1984,47 @@ app.get('/api/products/:id/reviews', async (req, res) => {
 //    - Delete a single review (protected; either admin or review author)
 // ---------------------------------------
 app.delete('/api/reviews/:id', protect, async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const reviewId = req.params.id;
+    try {
+        const userId = req.user._id;
+        const reviewId = req.params.id;
 
-    if (!mongoose.Types.ObjectId.isValid(reviewId)) {
-      return res.status(400).json({ message: 'Invalid review ID' });
+        if (!mongoose.Types.ObjectId.isValid(reviewId)) {
+            return res.status(400).json({ message: 'Invalid review ID' });
+        }
+        const review = await Review.findById(reviewId);
+        if (!review) {
+            return res.status(404).json({ message: 'Review not found' });
+        }
+
+        // Only the review author or an admin can delete
+        if (
+            review.user.toString() !== userId.toString() &&
+            req.user.role !== 'admin'
+        ) {
+            return res.status(403).json({ message: 'Not authorized to delete this review' });
+        }
+
+        const productId = review.product;
+        await review.remove();
+
+        // Recalculate product’s numReviews and average rating after deletion
+        const remainingReviews = await Review.find({ product: productId }).select('rating');
+        const numReviews = remainingReviews.length;
+        const avgRating =
+            numReviews > 0
+                ? remainingReviews.reduce((acc, r) => acc + r.rating, 0) / numReviews
+                : 0;
+
+        await Product.findByIdAndUpdate(productId, {
+            numReviews,
+            rating: avgRating,
+        });
+
+        return res.json({ message: 'Review deleted successfully' });
+    } catch (err) {
+        console.error('Error in DELETE /api/reviews/:id:', err);
+        return res.status(500).json({ message: 'Server error' });
     }
-    const review = await Review.findById(reviewId);
-    if (!review) {
-      return res.status(404).json({ message: 'Review not found' });
-    }
-
-    // Only the review author or an admin can delete
-    if (
-      review.user.toString() !== userId.toString() &&
-      req.user.role !== 'admin'
-    ) {
-      return res.status(403).json({ message: 'Not authorized to delete this review' });
-    }
-
-    const productId = review.product;
-    await review.remove();
-
-    // Recalculate product’s numReviews and average rating after deletion
-    const remainingReviews = await Review.find({ product: productId }).select('rating');
-    const numReviews = remainingReviews.length;
-    const avgRating =
-      numReviews > 0
-        ? remainingReviews.reduce((acc, r) => acc + r.rating, 0) / numReviews
-        : 0;
-
-    await Product.findByIdAndUpdate(productId, {
-      numReviews,
-      rating: avgRating,
-    });
-
-    return res.json({ message: 'Review deleted successfully' });
-  } catch (err) {
-    console.error('Error in DELETE /api/reviews/:id:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
 });
 
 // ---------------------------------------
@@ -1746,26 +2033,364 @@ app.delete('/api/reviews/:id', protect, async (req, res) => {
 //    - Useful for admin moderation or editing UI
 // ---------------------------------------
 app.get('/api/reviews/:id', async (req, res) => {
-  try {
-    const reviewId = req.params.id;
+    try {
+        const reviewId = req.params.id;
 
-    if (!mongoose.Types.ObjectId.isValid(reviewId)) {
-      return res.status(400).json({ message: 'Invalid review ID' });
-    }
-    const review = await Review.findById(reviewId).populate('user', 'name email');
-    if (!review) {
-      return res.status(404).json({ message: 'Review not found' });
-    }
+        if (!mongoose.Types.ObjectId.isValid(reviewId)) {
+            return res.status(400).json({ message: 'Invalid review ID' });
+        }
+        const review = await Review.findById(reviewId).populate('user', 'name email');
+        if (!review) {
+            return res.status(404).json({ message: 'Review not found' });
+        }
 
-    return res.json(review);
-  } catch (err) {
-    console.error('Error in GET /api/reviews/:id:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
+        return res.json(review);
+    } catch (err) {
+        console.error('Error in GET /api/reviews/:id:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
 });
 
 
+app.post('/api/tickets', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { type, relatedOrder, relatedProduct, subject, description } = req.body;
 
+        // Validate required fields
+        if (!['complaint', 'dispute'].includes(type)) {
+            return res.status(400).json({ message: 'Type must be either "complaint" or "dispute"' });
+        }
+        if (!subject || !subject.trim() || !description || !description.trim()) {
+            return res.status(400).json({ message: 'Subject and description are required' });
+        }
+
+        // If dispute, relatedOrder is required and must exist
+        if (type === 'dispute') {
+            if (!relatedOrder || !mongoose.Types.ObjectId.isValid(relatedOrder)) {
+                return res.status(400).json({ message: 'A valid relatedOrder ID is required for disputes' });
+            }
+            const order = await Order.findById(relatedOrder);
+            if (!order || order.user.toString() !== userId.toString()) {
+                return res.status(404).json({ message: 'Order not found or not owned by you' });
+            }
+        }
+
+        // If complaint, relatedProduct is required and must exist
+        if (type === 'complaint') {
+            if (!relatedProduct || !mongoose.Types.ObjectId.isValid(relatedProduct)) {
+                return res.status(400).json({ message: 'A valid relatedProduct ID is required for complaints' });
+            }
+            const product = await Product.findById(relatedProduct);
+            if (!product) {
+                return res.status(404).json({ message: 'Product not found' });
+            }
+        }
+
+        const newTicket = new Ticket({
+            user: userId,
+            type,
+            relatedOrder: type === 'dispute' ? relatedOrder : undefined,
+            relatedProduct: type === 'complaint' ? relatedProduct : undefined,
+            subject: subject.trim(),
+            description: description.trim(),
+            status: 'open',
+            messages: [
+                {
+                    sender: userId,
+                    content: description.trim(),
+                },
+            ],
+            assignedTo: null,
+        });
+
+        const created = await newTicket.save();
+        return res.status(201).json(created);
+    } catch (err) {
+        console.error('Error in POST /api/tickets:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// 2.2 Get all tickets created by the authenticated user
+//     GET /api/tickets/my
+//     Query Params: page, limit
+//     Protected
+app.get('/api/tickets/my', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const pageSize = Number(req.query.limit) || 20;
+        const page = Number(req.query.page) || 1;
+
+        const total = await Ticket.countDocuments({ user: userId });
+        const tickets = await Ticket.find({ user: userId })
+            .sort({ createdAt: -1 })
+            .skip(pageSize * (page - 1))
+            .limit(pageSize)
+            .select('-messages') // omit messages list for summary view
+            .lean();
+
+        return res.json({
+            tickets,
+            page,
+            pages: Math.ceil(total / pageSize),
+            total,
+        });
+    } catch (err) {
+        console.error('Error in GET /api/tickets/my:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// 2.3 Get full details (including message thread) of a specific ticket owned by the user
+//     GET /api/tickets/my/:ticketId
+//     Protected
+app.get('/api/tickets/my/:ticketId', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const ticketId = req.params.ticketId;
+
+        if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+            return res.status(400).json({ message: 'Invalid ticket ID' });
+        }
+
+        const ticket = await Ticket.findById(ticketId)
+            .populate('messages.sender', 'name email')
+            .populate('relatedOrder', 'orderItems totalPrice')
+            .populate('relatedProduct', 'name price');
+
+        if (!ticket) {
+            return res.status(404).json({ message: 'Ticket not found' });
+        }
+        if (ticket.user.toString() !== userId.toString()) {
+            return res.status(403).json({ message: 'Access denied: Not your ticket' });
+        }
+
+        return res.json(ticket);
+    } catch (err) {
+        console.error('Error in GET /api/tickets/my/:ticketId:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// 2.4 User adds a follow-up message to their own ticket (if it’s still open/in_progress)
+//     POST /api/tickets/my/:ticketId/message
+//     Body: { content: String }
+//     Protected
+app.post('/api/tickets/my/:ticketId/message', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const ticketId = req.params.ticketId;
+        const { content } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+            return res.status(400).json({ message: 'Invalid ticket ID' });
+        }
+        if (!content || !content.trim()) {
+            return res.status(400).json({ message: 'Message content is required' });
+        }
+
+        const ticket = await Ticket.findById(ticketId);
+        if (!ticket) {
+            return res.status(404).json({ message: 'Ticket not found' });
+        }
+        if (ticket.user.toString() !== userId.toString()) {
+            return res.status(403).json({ message: 'Access denied: Not your ticket' });
+        }
+        if (['resolved', 'closed'].includes(ticket.status)) {
+            return res.status(400).json({ message: 'Cannot add messages to a resolved or closed ticket' });
+        }
+
+        ticket.messages.push({
+            sender: userId,
+            content: content.trim(),
+        });
+        ticket.status = 'in_progress'; // escalate if user follows up
+        ticket.updatedAt = Date.now();
+
+        const updated = await ticket.save();
+        return res.json(updated);
+    } catch (err) {
+        console.error('Error in POST /api/tickets/my/:ticketId/message:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// -----------------------------------------------------------------------------
+// 3. Admin Routes to Manage All Tickets & Resolve Disputes
+// -----------------------------------------------------------------------------
+
+// Middleware to check admin role
+const adminOnly = (req, res, next) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ message: 'Access denied: Admins only' });
+    }
+    next();
+};
+
+// 3.1 Get all tickets (with optional filters by type/status)
+//     GET /api/admin/tickets
+//     Query Params: type, status, page, limit
+//     Protected + adminOnly
+app.get('/api/admin/tickets', protect, adminOnly, async (req, res) => {
+    try {
+        const { type, status } = req.query;
+        const pageSize = Number(req.query.limit) || 20;
+        const page = Number(req.query.page) || 1;
+
+        const filter = {};
+        if (type && ['complaint', 'dispute'].includes(type)) filter.type = type;
+        if (status && ['open', 'in_progress', 'resolved', 'closed'].includes(status)) filter.status = status;
+
+        const total = await Ticket.countDocuments(filter);
+        const tickets = await Ticket.find(filter)
+            .sort({ createdAt: -1 })
+            .skip(pageSize * (page - 1))
+            .limit(pageSize)
+            .populate('user', 'name email')
+            .select('-messages') // summary view
+            .lean();
+
+        return res.json({
+            tickets,
+            page,
+            pages: Math.ceil(total / pageSize),
+            total,
+        });
+    } catch (err) {
+        console.error('Error in GET /api/admin/tickets:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// 3.2 Get full details of a ticket (including all messages) by ticket ID
+//     GET /api/admin/tickets/:ticketId
+//     Protected + adminOnly
+app.get('/api/admin/tickets/:ticketId', protect, adminOnly, async (req, res) => {
+    try {
+        const ticketId = req.params.ticketId;
+
+        if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+            return res.status(400).json({ message: 'Invalid ticket ID' });
+        }
+
+        const ticket = await Ticket.findById(ticketId)
+            .populate('user', 'name email')
+            .populate('messages.sender', 'name email')
+            .populate('relatedOrder', 'orderItems totalPrice')
+            .populate('relatedProduct', 'name price');
+
+        if (!ticket) {
+            return res.status(404).json({ message: 'Ticket not found' });
+        }
+
+        return res.json(ticket);
+    } catch (err) {
+        console.error('Error in GET /api/admin/tickets/:ticketId:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// 3.3 Admin posts a response message and/or updates ticket status/assignment
+//     PUT /api/admin/tickets/:ticketId
+//     Body: {
+//       message: String (optional),
+//       status: 'open' | 'in_progress' | 'resolved' | 'closed' (optional),
+//       assignTo: adminUserId (optional: assign or reassign ticket)
+//     }
+//     Protected + adminOnly
+app.put('/api/admin/tickets/:ticketId', protect, adminOnly, async (req, res) => {
+    try {
+        const adminId = req.user._id;
+        const ticketId = req.params.ticketId;
+        const { message, status, assignTo } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+            return res.status(400).json({ message: 'Invalid ticket ID' });
+        }
+
+        const ticket = await Ticket.findById(ticketId);
+        if (!ticket) {
+            return res.status(404).json({ message: 'Ticket not found' });
+        }
+
+        // Validate and update status
+        if (status) {
+            if (!['open', 'in_progress', 'resolved', 'closed'].includes(status)) {
+                return res.status(400).json({ message: 'Invalid status value' });
+            }
+            ticket.status = status;
+        }
+
+        // Validate and update assignedTo
+        if (assignTo) {
+            if (!mongoose.Types.ObjectId.isValid(assignTo)) {
+                return res.status(400).json({ message: 'Invalid admin user ID for assignment' });
+            }
+            const adminUser = await User.findById(assignTo);
+            if (!adminUser || adminUser.role !== 'admin') {
+                return res.status(400).json({ message: 'Assigned user must be a valid admin' });
+            }
+            ticket.assignedTo = assignTo;
+        }
+
+        // Add admin message if provided
+        if (message && message.trim()) {
+            ticket.messages.push({
+                sender: adminId,
+                content: message.trim(),
+            });
+        }
+
+        ticket.updatedAt = Date.now();
+        const updatedTicket = await ticket.save();
+
+        // Populate before returning
+        const populated = await Ticket.findById(updatedTicket._id)
+            .populate('user', 'name email')
+            .populate('messages.sender', 'name email')
+            .populate('relatedOrder', 'orderItems totalPrice')
+            .populate('relatedProduct', 'name price')
+            .populate('assignedTo', 'name email');
+
+        return res.json(populated);
+    } catch (err) {
+        console.error('Error in PUT /api/admin/tickets/:ticketId:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// 3.4 Admin closes (or reopens) a ticket without adding a message
+//     PATCH /api/admin/tickets/:ticketId/status
+//     Body: { status: 'resolved' | 'closed' | 'open' | 'in_progress' }
+//     Protected + adminOnly
+app.patch('/api/admin/tickets/:ticketId/status', protect, adminOnly, async (req, res) => {
+    try {
+        const ticketId = req.params.ticketId;
+        const { status } = req.body;
+
+        if (!mongoose.Types.ObjectId.isValid(ticketId)) {
+            return res.status(400).json({ message: 'Invalid ticket ID' });
+        }
+        if (!['open', 'in_progress', 'resolved', 'closed'].includes(status)) {
+            return res.status(400).json({ message: 'Invalid status value' });
+        }
+
+        const ticket = await Ticket.findById(ticketId);
+        if (!ticket) {
+            return res.status(404).json({ message: 'Ticket not found' });
+        }
+
+        ticket.status = status;
+        ticket.updatedAt = Date.now();
+        const updated = await ticket.save();
+
+        return res.json({ message: `Ticket status updated to ${status}`, ticketId: updated._id });
+    } catch (err) {
+        console.error('Error in PATCH /api/admin/tickets/:ticketId/status:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
 
 
 // ---------------------------------------
