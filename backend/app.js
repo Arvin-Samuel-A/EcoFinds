@@ -18,11 +18,16 @@ import {
     PaymentMethod,
     Notification,
     ReportedReview,
+    SavedSearch,
+    PriceAlert,
+    ChatMessage,
 } from './orm.js';
 
 import cors from 'cors';
 import { upload, uploadToGCP, deleteFromGCP } from './gcp-storage.js';
 import { PredictionServiceClient } from '@google-cloud/aiplatform';
+import http from 'http';
+import { Server } from 'socket.io';
 
 dotenv.config();
 
@@ -886,6 +891,882 @@ app.get('/api/users/profile/vertex-recommendations', protect, async (req, res) =
     return res.status(500).json({ message: 'Server error in generating recommendations' });
   }
 });
+
+
+// -----------------------------------------------------------------------------
+// 2. Routes: Saved Searches
+// -----------------------------------------------------------------------------
+
+// 2.1 Create a new saved search
+//    POST /api/saved-searches
+//    Body: { keyword: String (optional), filters: { category, minPrice, maxPrice, minRating, inStock } }
+//    Protected: user must be authenticated
+app.post('/api/saved-searches', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { keyword, filters } = req.body;
+
+    // At least keyword or one filter should be provided
+    if (
+      (!keyword || keyword.trim() === '') &&
+      (!filters ||
+        (filters.category === undefined &&
+          filters.minPrice === undefined &&
+          filters.maxPrice === undefined &&
+          filters.minRating === undefined &&
+          filters.inStock === undefined))
+    ) {
+      return res
+        .status(400)
+        .json({ message: 'Provide at least a keyword or one filter to save a search' });
+    }
+
+    // Validate category ID if provided
+    let categoryObjId = null;
+    if (filters && filters.category) {
+      if (!mongoose.Types.ObjectId.isValid(filters.category)) {
+        return res.status(400).json({ message: 'Invalid category ID in filters' });
+      }
+      categoryObjId = mongoose.Types.ObjectId(filters.category);
+    }
+
+    // Build filters object
+    const savedFilters = {};
+    if (categoryObjId) savedFilters.category = categoryObjId;
+    if (filters.minPrice !== undefined) savedFilters.minPrice = Number(filters.minPrice);
+    if (filters.maxPrice !== undefined) savedFilters.maxPrice = Number(filters.maxPrice);
+    if (filters.minRating !== undefined) savedFilters.minRating = Number(filters.minRating);
+    if (filters.inStock !== undefined) savedFilters.inStock = Boolean(filters.inStock);
+
+    const newSavedSearch = new SavedSearch({
+      user: userId,
+      keyword: keyword ? keyword.trim() : undefined,
+      filters: savedFilters,
+    });
+
+    const created = await newSavedSearch.save();
+    return res.status(201).json(created);
+  } catch (err) {
+    console.error('Error in POST /api/saved-searches:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// 2.2 Get all saved searches for the current user
+//    GET /api/saved-searches
+//    Protected
+app.get('/api/saved-searches', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const searches = await SavedSearch.find({ user: userId }).sort({ createdAt: -1 });
+    return res.json(searches);
+  } catch (err) {
+    console.error('Error in GET /api/saved-searches:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// 2.3 Delete a saved search
+//    DELETE /api/saved-searches/:id
+//    Protected
+app.delete('/api/saved-searches/:id', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const searchId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(searchId)) {
+      return res.status(400).json({ message: 'Invalid saved search ID' });
+    }
+
+    const search = await SavedSearch.findById(searchId);
+    if (!search) {
+      return res.status(404).json({ message: 'Saved search not found' });
+    }
+    if (search.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized to delete this saved search' });
+    }
+
+    await search.remove();
+    return res.json({ message: 'Saved search deleted successfully' });
+  } catch (err) {
+    console.error('Error in DELETE /api/saved-searches/:id:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// -----------------------------------------------------------------------------
+// 3. Routes: Price Alerts
+// -----------------------------------------------------------------------------
+
+// 3.1 Create a new price alert
+//    POST /api/price-alerts
+//    Body: { product: productId (required), targetPrice (required) }
+//    Protected
+app.post('/api/price-alerts', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { product, targetPrice } = req.body;
+
+    if (!product || !mongoose.Types.ObjectId.isValid(product)) {
+      return res.status(400).json({ message: 'Valid product ID is required' });
+    }
+    if (targetPrice === undefined || isNaN(Number(targetPrice)) || Number(targetPrice) < 0) {
+      return res.status(400).json({ message: 'Valid target price is required' });
+    }
+
+    // Ensure product exists
+    const productExists = await Product.findById(product);
+    if (!productExists) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Prevent duplicate alerts for the same product & user
+    const existing = await PriceAlert.findOne({
+      user: userId,
+      product: mongoose.Types.ObjectId(product),
+      isActive: true,
+    });
+    if (existing) {
+      return res
+        .status(400)
+        .json({ message: 'An active price alert for this product already exists' });
+    }
+
+    const newAlert = new PriceAlert({
+      user: userId,
+      product: mongoose.Types.ObjectId(product),
+      targetPrice: Number(targetPrice),
+      isActive: true,
+    });
+
+    const created = await newAlert.save();
+    return res.status(201).json(created);
+  } catch (err) {
+    console.error('Error in POST /api/price-alerts:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// 3.2 Get all price alerts for the current user
+//    GET /api/price-alerts
+//    Protected
+app.get('/api/price-alerts', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const alerts = await PriceAlert.find({ user: userId })
+      .populate('product', 'name price images')
+      .sort({ createdAt: -1 });
+    return res.json(alerts);
+  } catch (err) {
+    console.error('Error in GET /api/price-alerts:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// 3.3 Update a price alert (e.g., change targetPrice or toggle isActive)
+//    PUT /api/price-alerts/:id
+//    Body: { targetPrice (optional), isActive (optional) }
+//    Protected
+app.put('/api/price-alerts/:id', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const alertId = req.params.id;
+    const { targetPrice, isActive } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(alertId)) {
+      return res.status(400).json({ message: 'Invalid price alert ID' });
+    }
+
+    const alert = await PriceAlert.findById(alertId);
+    if (!alert) {
+      return res.status(404).json({ message: 'Price alert not found' });
+    }
+    if (alert.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized to update this price alert' });
+    }
+
+    if (targetPrice !== undefined) {
+      if (isNaN(Number(targetPrice)) || Number(targetPrice) < 0) {
+        return res.status(400).json({ message: 'Valid target price is required' });
+      }
+      alert.targetPrice = Number(targetPrice);
+    }
+    if (isActive !== undefined) {
+      alert.isActive = Boolean(isActive);
+    }
+
+    const updated = await alert.save();
+    return res.json(updated);
+  } catch (err) {
+    console.error('Error in PUT /api/price-alerts/:id:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// 3.4 Delete a price alert
+//    DELETE /api/price-alerts/:id
+//    Protected
+app.delete('/api/price-alerts/:id', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const alertId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(alertId)) {
+      return res.status(400).json({ message: 'Invalid price alert ID' });
+    }
+
+    const alert = await PriceAlert.findById(alertId);
+    if (!alert) {
+      return res.status(404).json({ message: 'Price alert not found' });
+    }
+    if (alert.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized to delete this price alert' });
+    }
+
+    await alert.remove();
+    return res.json({ message: 'Price alert deleted successfully' });
+  } catch (err) {
+    console.error('Error in DELETE /api/price-alerts/:id:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 1. Route: GET /api/cart
+//    - Retrieve current user's cart (protected)
+// ---------------------------------------
+app.get('/api/cart', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Find or create the user's cart
+    let cart = await Cart.findOne({ user: userId }).populate({
+      path: 'items.product',
+      select: 'name price images countInStock',
+    });
+
+    if (!cart) {
+      // If no cart exists yet, return an empty structure
+      return res.json({ items: [] });
+    }
+
+    return res.json(cart);
+  } catch (err) {
+    console.error('Error in GET /api/cart:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 2. Route: POST /api/cart
+//    - Add a product to cart or increase quantity (protected)
+//    - Body: { productId: string, quantity: number }
+// ---------------------------------------
+app.post('/api/cart', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { productId, quantity } = req.body;
+
+    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: 'Valid productId is required' });
+    }
+    const qty = Number(quantity);
+    if (!qty || qty < 1) {
+      return res.status(400).json({ message: 'Quantity must be at least 1' });
+    }
+
+    // Fetch product to validate existence and get current price and stock
+    const product = await Product.findById(productId).select('price countInStock');
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    if (product.countInStock < qty) {
+      return res.status(400).json({ message: 'Requested quantity exceeds stock' });
+    }
+
+    // Find or create cart
+    let cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      cart = new Cart({ user: userId, items: [] });
+    }
+
+    // Check if item already in cart
+    const existingIndex = cart.items.findIndex((item) =>
+      item.product.equals(productId)
+    );
+    if (existingIndex > -1) {
+      // Update quantity
+      const newQty = cart.items[existingIndex].quantity + qty;
+      if (product.countInStock < newQty) {
+        return res
+          .status(400)
+          .json({ message: 'Total quantity in cart exceeds stock' });
+      }
+      cart.items[existingIndex].quantity = newQty;
+    } else {
+      // Add new item
+      cart.items.push({
+        product: mongoose.Types.ObjectId(productId),
+        quantity: qty,
+        priceAtAddition: product.price,
+      });
+    }
+
+    cart.updatedAt = Date.now();
+    const updatedCart = await cart.save();
+
+    // Populate product details for response
+    const populatedCart = await Cart.findById(updatedCart._id).populate({
+      path: 'items.product',
+      select: 'name price images countInStock',
+    });
+
+    return res.status(201).json(populatedCart);
+  } catch (err) {
+    console.error('Error in POST /api/cart:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 3. Route: PUT /api/cart
+//    - Update quantity of an existing cart item (protected)
+//    - Body: { productId: string, quantity: number }
+// ---------------------------------------
+app.put('/api/cart', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { productId, quantity } = req.body;
+
+    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: 'Valid productId is required' });
+    }
+    const qty = Number(quantity);
+    if (qty < 1) {
+      return res.status(400).json({ message: 'Quantity must be at least 1' });
+    }
+
+    // Fetch product to check stock
+    const product = await Product.findById(productId).select('countInStock');
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+    if (product.countInStock < qty) {
+      return res.status(400).json({ message: 'Requested quantity exceeds stock' });
+    }
+
+    // Find cart
+    const cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      return res.status(404).json({ message: 'Cart not found' });
+    }
+
+    const itemIndex = cart.items.findIndex((item) =>
+      item.product.equals(productId)
+    );
+    if (itemIndex === -1) {
+      return res.status(404).json({ message: 'Product not found in cart' });
+    }
+
+    // Update quantity
+    cart.items[itemIndex].quantity = qty;
+    cart.updatedAt = Date.now();
+    const updatedCart = await cart.save();
+
+    // Populate for response
+    const populatedCart = await Cart.findById(updatedCart._id).populate({
+      path: 'items.product',
+      select: 'name price images countInStock',
+    });
+
+    return res.json(populatedCart);
+  } catch (err) {
+    console.error('Error in PUT /api/cart:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 4. Route: DELETE /api/cart/:productId
+//    - Remove a single product from cart (protected)
+// ---------------------------------------
+app.delete('/api/cart/:productId', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { productId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: 'Invalid productId' });
+    }
+
+    const cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      return res.status(404).json({ message: 'Cart not found' });
+    }
+
+    const itemIndex = cart.items.findIndex((item) =>
+      item.product.equals(productId)
+    );
+    if (itemIndex === -1) {
+      return res.status(404).json({ message: 'Product not found in cart' });
+    }
+
+    // Remove item
+    cart.items.splice(itemIndex, 1);
+    cart.updatedAt = Date.now();
+    const updatedCart = await cart.save();
+
+    // Populate for response
+    const populatedCart = await Cart.findById(updatedCart._id).populate({
+      path: 'items.product',
+      select: 'name price images countInStock',
+    });
+
+    return res.json(populatedCart);
+  } catch (err) {
+    console.error('Error in DELETE /api/cart/:productId:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 5. Route: DELETE /api/cart
+//    - Clear entire cart (protected)
+// ---------------------------------------
+app.delete('/api/cart', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      return res.status(404).json({ message: 'Cart not found' });
+    }
+
+    cart.items = [];
+    cart.updatedAt = Date.now();
+    await cart.save();
+
+    return res.json({ message: 'Cart cleared' });
+  } catch (err) {
+    console.error('Error in DELETE /api/cart:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 1. Route: GET /api/orders/myorders
+//    - Retrieve all past orders for the authenticated user
+//    - Optional query params: page, limit
+// ---------------------------------------
+app.get('/api/orders/myorders', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const pageSize = Number(req.query.limit) || 20;
+    const page = Number(req.query.page) || 1;
+
+    // Count total orders for pagination
+    const total = await Order.countDocuments({ user: userId });
+
+    // Fetch orders sorted by most recent
+    const orders = await Order.find({ user: userId })
+      .sort({ createdAt: -1 })
+      .skip(pageSize * (page - 1))
+      .limit(pageSize)
+      .select('orderItems totalPrice isPaid paidAt isDelivered deliveredAt createdAt');
+
+    return res.json({
+      orders,
+      page,
+      pages: Math.ceil(total / pageSize),
+      total,
+    });
+  } catch (err) {
+    console.error('Error in GET /api/orders/myorders:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 2. Route: GET /api/orders/myorders/:id
+//    - Retrieve details of a specific past order for the authenticated user
+// ---------------------------------------
+app.get('/api/orders/myorders/:id', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const orderId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: 'Invalid order ID' });
+    }
+
+    const order = await Order.findById(orderId)
+      .populate({
+        path: 'orderItems.product',
+        select: 'name price images',
+      })
+      .populate({
+        path: 'user',
+        select: 'name email',
+      });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+    if (order.user._id.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Access denied: Not your order' });
+    }
+
+    return res.json(order);
+  } catch (err) {
+    console.error('Error in GET /api/orders/myorders/:id:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 3. (Optional) Route: GET /api/orders/:id
+//    - Retrieve any order by ID (admin only)
+// ---------------------------------------
+app.get('/api/orders/:id', protect, async (req, res) => {
+  try {
+    const user = req.user;
+    if (user.role !== 'admin') {
+      return res.status(403).json({ message: 'Access denied: Admins only' });
+    }
+
+    const orderId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: 'Invalid order ID' });
+    }
+
+    const order = await Order.findById(orderId)
+      .populate({
+        path: 'orderItems.product',
+        select: 'name price images',
+      })
+      .populate({
+        path: 'user',
+        select: 'name email',
+      });
+
+    if (!order) {
+      return res.status(404).json({ message: 'Order not found' });
+    }
+
+    return res.json(order);
+  } catch (err) {
+    console.error('Error in GET /api/orders/:id (admin):', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: '*',       // adjust in production to your frontend URL
+    methods: ['GET', 'POST'],
+  },
+});
+
+// ---------------------------------------
+// 2. Socket Authentication Middleware
+// ---------------------------------------
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token;
+    if (!token) {
+      return next(new Error('Authentication error: Token required'));
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'supersecret');
+    const user = await User.findById(decoded.id).select('-passwordHash');
+    if (!user) {
+      return next(new Error('Authentication error: User not found'));
+    }
+    socket.user = user; // attach the user object to socket
+    next();
+  } catch (err) {
+    return next(new Error('Authentication error: Invalid token'));
+  }
+});
+
+// ---------------------------------------
+// 3. Socket.IO Event Handling
+// ---------------------------------------
+io.on('connection', (socket) => {
+  const currentUser = socket.user; // { _id, name, email, role, ... }
+
+  // Clients can join a "room" named after their user ID to receive direct messages
+  socket.join(currentUser._id.toString());
+
+  // Handle incoming direct messages
+  // Client emits: 'directMessage', payload: { toUserId: string, content: string }
+  socket.on('directMessage', async (payload) => {
+    try {
+      const { toUserId, content } = payload;
+      if (!mongoose.Types.ObjectId.isValid(toUserId) || !content || content.trim() === '') {
+        socket.emit('error', { message: 'Invalid payload for directMessage' });
+        return;
+      }
+
+      // Validate that `toUserId` corresponds to an existing user
+      const receiver = await User.findById(toUserId);
+      if (!receiver) {
+        socket.emit('error', { message: 'Receiver not found' });
+        return;
+      }
+
+      // Create and save the chat message in MongoDB
+      const chatMsg = new ChatMessage({
+        sender: currentUser._id,
+        receiver: toUserId,
+        content: content.trim(),
+      });
+      await chatMsg.save();
+
+      const msgData = {
+        _id: chatMsg._id,
+        sender: currentUser._id,
+        receiver: toUserId,
+        content: chatMsg.content,
+        timestamp: chatMsg.timestamp,
+      };
+
+      // Emit the message to the receiver's room
+      io.to(toUserId).emit('newDirectMessage', msgData);
+
+      // Also emit back to the sender so they see their own message in the chat window
+      io.to(currentUser._id.toString()).emit('newDirectMessage', msgData);
+    } catch (err) {
+      console.error('Error handling directMessage:', err);
+      socket.emit('error', { message: 'Server error sending message' });
+    }
+  });
+
+  // Clean up on disconnect
+  socket.on('disconnect', () => {
+    socket.leave(currentUser._id.toString());
+  });
+});
+
+// ---------------------------------------
+// 4. REST Endpoints for Chat History
+// ---------------------------------------
+
+// 4.1 GET /api/chats/:otherUserId
+//    - Retrieve full chat history between authenticated user and `:otherUserId`
+//    - Protected via `protect` middleware
+app.get('/api/chats/:otherUserId', protect, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const otherUserId = req.params.otherUserId;
+
+    if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+
+    // Ensure the other user exists
+    const otherUser = await User.findById(otherUserId);
+    if (!otherUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Fetch messages where (sender = userId AND receiver = otherUserId) OR vice versa
+    const messages = await ChatMessage.find({
+      $or: [
+        { sender: mongoose.Types.ObjectId(userId), receiver: mongoose.Types.ObjectId(otherUserId) },
+        { sender: mongoose.Types.ObjectId(otherUserId), receiver: mongoose.Types.ObjectId(userId) },
+      ],
+    })
+      .sort({ timestamp: 1 }) // chronological order
+      .lean();
+
+    return res.json({ messages });
+  } catch (err) {
+    console.error('Error in GET /api/chats/:otherUserId:', err);
+    return res.status(500).json({ message: 'Server error fetching chat history' });
+  }
+});
+
+
+// ---------------------------------------
+// 1. Route: POST /api/products/:id/reviews
+//    - Add a new review & rating for a product (protected)
+//    - Body: { rating: Number (1–5), comment: String (optional) }
+//    - After creating a review, update product’s numReviews & avg rating
+// ---------------------------------------
+app.post('/api/products/:id/reviews', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const productId = req.params.id;
+    const { rating, comment } = req.body;
+
+    // Validate product ID
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: 'Invalid product ID' });
+    }
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Validate rating
+    const numericRating = Number(rating);
+    if (!numericRating || numericRating < 1 || numericRating > 5) {
+      return res.status(400).json({ message: 'Rating must be an integer between 1 and 5' });
+    }
+
+    // Check if user already submitted a review for this product
+    const existingReview = await Review.findOne({
+      user: userId,
+      product: productId,
+    });
+    if (existingReview) {
+      return res.status(400).json({ message: 'You have already reviewed this product' });
+    }
+
+    // Create and save new review
+    const newReview = new Review({
+      user: userId,
+      product: productId,
+      rating: numericRating,
+      comment: comment ? comment.trim() : '',
+    });
+    await newReview.save();
+
+    // Recalculate product’s numReviews and average rating
+    const allReviews = await Review.find({ product: productId }).select('rating');
+    const numReviews = allReviews.length;
+    const avgRating =
+      allReviews.reduce((acc, r) => acc + r.rating, 0) / numReviews;
+
+    product.numReviews = numReviews;
+    product.rating = avgRating;
+    await product.save();
+
+    return res.status(201).json({ message: 'Review submitted successfully' });
+  } catch (err) {
+    console.error('Error in POST /api/products/:id/reviews:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 2. Route: GET /api/products/:id/reviews
+//    - Retrieve all reviews for a given product
+//    - Query Params: page, limit
+// ---------------------------------------
+app.get('/api/products/:id/reviews', async (req, res) => {
+  try {
+    const productId = req.params.id;
+    const pageSize = Number(req.query.limit) || 20;
+    const page = Number(req.query.page) || 1;
+
+    // Validate product ID
+    if (!mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: 'Invalid product ID' });
+    }
+    const productExists = await Product.findById(productId);
+    if (!productExists) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Count total reviews for pagination
+    const total = await Review.countDocuments({ product: productId });
+
+    // Fetch reviews, populate user’s name for display
+    const reviews = await Review.find({ product: productId })
+      .sort({ createdAt: -1 })
+      .skip(pageSize * (page - 1))
+      .limit(pageSize)
+      .populate('user', 'name');
+
+    return res.json({
+      reviews,
+      page,
+      pages: Math.ceil(total / pageSize),
+      total,
+    });
+  } catch (err) {
+    console.error('Error in GET /api/products/:id/reviews:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 3. Route: DELETE /api/reviews/:id
+//    - Delete a single review (protected; either admin or review author)
+// ---------------------------------------
+app.delete('/api/reviews/:id', protect, async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const reviewId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(reviewId)) {
+      return res.status(400).json({ message: 'Invalid review ID' });
+    }
+    const review = await Review.findById(reviewId);
+    if (!review) {
+      return res.status(404).json({ message: 'Review not found' });
+    }
+
+    // Only the review author or an admin can delete
+    if (
+      review.user.toString() !== userId.toString() &&
+      req.user.role !== 'admin'
+    ) {
+      return res.status(403).json({ message: 'Not authorized to delete this review' });
+    }
+
+    const productId = review.product;
+    await review.remove();
+
+    // Recalculate product’s numReviews and average rating after deletion
+    const remainingReviews = await Review.find({ product: productId }).select('rating');
+    const numReviews = remainingReviews.length;
+    const avgRating =
+      numReviews > 0
+        ? remainingReviews.reduce((acc, r) => acc + r.rating, 0) / numReviews
+        : 0;
+
+    await Product.findByIdAndUpdate(productId, {
+      numReviews,
+      rating: avgRating,
+    });
+
+    return res.json({ message: 'Review deleted successfully' });
+  } catch (err) {
+    console.error('Error in DELETE /api/reviews/:id:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// ---------------------------------------
+// 4. Route: GET /api/reviews/:id
+//    - (Optional) Retrieve a single review by its ID
+//    - Useful for admin moderation or editing UI
+// ---------------------------------------
+app.get('/api/reviews/:id', async (req, res) => {
+  try {
+    const reviewId = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(reviewId)) {
+      return res.status(400).json({ message: 'Invalid review ID' });
+    }
+    const review = await Review.findById(reviewId).populate('user', 'name email');
+    if (!review) {
+      return res.status(404).json({ message: 'Review not found' });
+    }
+
+    return res.json(review);
+  } catch (err) {
+    console.error('Error in GET /api/reviews/:id:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+
+
 
 // ---------------------------------------
 // 9. Error Handling for Unmatched Routes & General Errors

@@ -290,6 +290,47 @@ const reportedReviewSchema = new Schema(
 
 const ReportedReview = model('ReportedReview', reportedReviewSchema);
 
+const savedSearchSchema = new Schema(
+  {
+    user: { type: mongoose.Types.ObjectId, ref: 'User', required: true },
+    keyword: { type: String, trim: true },
+    filters: {
+      category: { type: mongoose.Types.ObjectId, ref: 'Category' },
+      minPrice: { type: Number },
+      maxPrice: { type: Number },
+      minRating: { type: Number, min: 1, max: 5 },
+      inStock: { type: Boolean },
+    },
+  },
+  { timestamps: true }
+);
+
+const priceAlertSchema = new Schema(
+  {
+    user: { type: mongoose.Types.ObjectId, ref: 'User', required: true },
+    product: { type: mongoose.Types.ObjectId, ref: 'Product', required: true },
+    targetPrice: { type: Number, required: true, min: 0 },
+    isActive: { type: Boolean, default: true },
+    lastNotifiedAt: { type: Date }, // optional: track when user was last notified
+  },
+  { timestamps: true }
+);
+
+const SavedSearch = mongoose.model('SavedSearch', savedSearchSchema);
+const PriceAlert = mongoose.model('PriceAlert', priceAlertSchema);
+
+const chatMessageSchema = new Schema(
+  {
+    sender: { type: Types.ObjectId, ref: 'User', required: true },
+    receiver: { type: Types.ObjectId, ref: 'User', required: true },
+    content: { type: String, required: true },
+    timestamp: { type: Date, default: Date.now },
+  },
+  { timestamps: false }
+);
+
+const ChatMessage = model('ChatMessage', chatMessageSchema);
+
 /* ============================
    12. Connect and Export All Models
    ============================ */
@@ -305,4 +346,7 @@ export {
     PaymentMethod,
     Notification,
     ReportedReview,
+    SavedSearch,
+    PriceAlert,
+    ChatMessage
 };
