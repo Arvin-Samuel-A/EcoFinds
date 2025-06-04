@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* === Custom Globals === */
+html,body,#root{
+  @apply bg-gray-950 text-gray-100 min-h-screen font-body;
+  background-image: radial-gradient(#2d2d2d 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+h1,h2,h3,h4{
+  @apply font-heading tracking-wide;
+}
+
+/* Neon button hover pulse */
+.btn-neon{
+  @apply relative overflow-hidden;
+}
+.btn-neon::after{
+  content:"";
+  position:absolute; inset:0;
+  box-shadow:0 0 20px 4px theme('colors.accent.pink');
+  opacity:0; transition:opacity .3s;
+}
+.btn-neon:hover::after{opacity:.6}
+
+/* Scrollbar styling (WebKit) */
+::-webkit-scrollbar{width:8px}
+::-webkit-scrollbar-thumb{
+  background:linear-gradient(theme('colors.accent.pink'),theme('colors.accent.purple'));
+  border-radius:4px;
+}
+
+/* Glass–card backdrop */
+.card-glass{
+  backdrop-filter: blur(14px) saturate(150%);
+  background: rgba(31,41,55,.55);
+  border:1px solid rgba(255,255,255,.08);
+  @apply rounded-2xl shadow-neon;
+}

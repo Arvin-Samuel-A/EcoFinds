@@ -1,0 +1,35 @@
+/* Shared theme variables */
+:root {
+  --primary-color: #2a9d8f;
+  --secondary-color: #264653;
+  --background-color: #f0f4f3;
+  --text-color: #333333;
+  --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --border-radius: 6px;
+  --spacing: 16px;
+}
+
+/* Container */
+.aboutus-container {
+  max-width: 700px;
+  margin: 40px auto;
+  padding: var(--spacing);
+  background-color: var(--background-color);
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  font-family: var(--font-family);
+  color: var(--text-color);
+}
+
+/* Headings */
+.aboutus-container h1 {
+  color: var(--secondary-color);
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+/* Paragraphs */
+.aboutus-container p {
+  line-height: 1.6;
+  margin-bottom: 16px;
+}

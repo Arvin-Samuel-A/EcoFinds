@@ -1,0 +1,63 @@
+/* Shared theme variables */
+:root {
+  --primary-color: #2a9d8f;
+  --secondary-color: #264653;
+  --background-color: #f0f4f3;
+  --text-color: #333333;
+  --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --border-radius: 6px;
+  --spacing: 16px;
+  --link-color: #2a9d8f;
+  --link-hover-color: #21867a;
+}
+
+/* Container */
+.support-container {
+  max-width: 700px;
+  margin: 40px auto;
+  padding: var(--spacing);
+  background-color: var(--background-color);
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  font-family: var(--font-family);
+  color: var(--text-color);
+}
+
+/* Headings */
+.support-container h1,
+.support-container h2 {
+  color: var(--secondary-color);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+/* Paragraphs */
+.support-container p {
+  line-height: 1.6;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+/* List */
+.support-container ul {
+  list-style-type: disc;
+  padding-left: 20px;
+  margin-bottom: 16px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+}
+
+/* Links */
+.support-container a {
+  color: var(--link-color);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.support-container a:hover {
+  color: var(--link-hover-color);
+  text-decoration: underline;
+}

@@ -1,0 +1,557 @@
+/* AuthPage.css - Retrofuturistic theme for EcoFinds - TRUE Desktop Optimized */
+
+/* === Base and Variables === */
+:root {
+  --bg-dark: #050c24;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  
+  /* Neon colors */
+  --neon-pink: #ff00ff;
+  --neon-blue: #00ffff;
+  --neon-purple: #9e00ff;
+  --neon-yellow: #ffff00;
+  
+  /* Gradients */
+  --gradient-pink: linear-gradient(135deg, #ff00ff, #9e00ff);
+  --gradient-blue: linear-gradient(135deg, #00ffff, #0066ff);
+  --gradient-mixed: linear-gradient(135deg, #ff00ff, #00ffff);
+  
+  /* Glow effects */
+  --glow-pink: 0 0 10px rgba(255, 0, 255, 0.6), 0 0 20px rgba(255, 0, 255, 0.3);
+  --glow-blue: 0 0 10px rgba(0, 255, 255, 0.6), 0 0 20px rgba(0, 255, 255, 0.3);
+  
+  /* Animation speeds */
+  --speed-slow: 8s;
+  --speed-medium: 5s;
+  --speed-fast: 3s;
+
+  /* Layout - Full Desktop */
+  --auth-container-width: 100%;
+  --auth-card-width: min(1200px, 70%);
+  --form-max-width: 100%;
+  --border-radius: 12px;
+}
+
+/* === Global Styles === */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Inter', 'Roboto', sans-serif;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+body {
+  background-color: var(--bg-dark);
+}
+
+/* === Main Container === */
+.auth-container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+}
+
+/* === Background Elements === */
+.grid-pattern {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(rgba(255, 0, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 60px 60px;
+  opacity: 0.2;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.gradient-orbs {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.3;
+}
+
+.orb-1 {
+  top: -15%;
+  left: -10%;
+  width: 60vw;
+  height: 60vw;
+  background: var(--neon-pink);
+  animation: float-slow var(--speed-slow) ease-in-out infinite alternate;
+}
+
+.orb-2 {
+  bottom: -15%;
+  right: -10%;
+  width: 50vw;
+  height: 50vw;
+  background: var(--neon-blue);
+  animation: float-slow var(--speed-medium) ease-in-out infinite alternate-reverse;
+}
+
+.orb-3 {
+  top: 30%;
+  right: 15%;
+  width: 35vw;
+  height: 35vw;
+  background: var(--neon-purple);
+  opacity: 0.2;
+  animation: float-slow var(--speed-fast) ease-in-out infinite alternate;
+}
+
+.orb-4 {
+  bottom: 20%;
+  left: 15%;
+  width: 30vw;
+  height: 30vw;
+  background: var(--neon-yellow);
+  opacity: 0.15;
+  animation: float-slow var(--speed-medium) ease-in-out infinite alternate;
+}
+
+.grid-lines {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 30vh;
+  background-image: linear-gradient(to top, 
+    rgba(255, 0, 255, 0.1), 
+    transparent);
+  background-size: 100% 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.wave-animation {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 15vh;
+  background-image: linear-gradient(to right, 
+    rgba(255, 0, 255, 0.2) 0%, 
+    rgba(0, 255, 255, 0.2) 50%, 
+    rgba(255, 0, 255, 0.2) 100%);
+  background-size: 200% 100%;
+  animation: wave var(--speed-medium) linear infinite;
+  opacity: 0.3;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* === Content Wrapper === */
+.auth-content {
+  position: relative;
+  z-index: 10;
+  width: var(--auth-container-width);
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 0;
+  height: 100%;
+}
+
+.left-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.right-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+/* === Branding Section === */
+.branding {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.logo {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.logo-text {
+  font-size: 5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  background: var(--gradient-mixed);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: var(--glow-pink);
+  position: relative;
+}
+
+.logo-accent {
+  position: absolute;
+  top: 50%;
+  right: -16px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--neon-pink);
+  box-shadow: var(--glow-pink);
+  transform: translateY(-50%);
+}
+
+.tagline {
+  font-size: 1.8rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.05em;
+}
+
+/* === Auth Card === */
+.auth-card {
+  background: rgba(10, 20, 50, 0.6);
+  backdrop-filter: blur(15px);
+  border-radius: var(--border-radius);
+  padding: 3rem 4rem;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4), 
+              inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+              0 0 0 1px rgba(255, 0, 255, 0.1);
+  animation: card-appear 0.6s ease-out forwards;
+  width: 100%;
+  max-width: 550px;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-header {
+  margin-bottom: 3rem;
+  text-align: center;
+}
+
+.card-header h2 {
+  font-size: 3rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.neon-underline {
+  height: 3px;
+  width: 100px;
+  margin: 0 auto;
+  background: var(--gradient-blue);
+  border-radius: 1.5px;
+  box-shadow: var(--glow-blue);
+}
+
+/* === Form Styles === */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  width: 100%;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+label {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  padding-left: 0.5rem;
+}
+
+.input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+input {
+  width: 100%;
+  padding: 1.2rem 1.5rem;
+  border-radius: var(--border-radius);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  font-size: 1.2rem;
+  transition: all 0.3s ease;
+}
+
+input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 0 1px rgba(0, 255, 255, 0.3);
+}
+
+input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.submit-btn {
+  position: relative;
+  margin-top: 1.5rem;
+  padding: 1.2rem;
+  border: none;
+  border-radius: var(--border-radius);
+  background: var(--gradient-pink);
+  color: white;
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  z-index: 1;
+}
+
+.submit-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--glow-pink);
+}
+
+.submit-btn:active {
+  transform: translateY(1px);
+}
+
+.btn-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--gradient-blue);
+  opacity: 0;
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.submit-btn:hover .btn-glow {
+  opacity: 0.6;
+}
+
+/* === Footer Styles === */
+.auth-footer {
+  margin-top: 2.5rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.toggle-auth {
+  background: transparent;
+  border: none;
+  color: var(--neon-blue);
+  cursor: pointer;
+  font-weight: 600;
+  margin-left: 0.5rem;
+  font-size: 1.1rem;
+  transition: all 0.3s ease;
+}
+
+.toggle-auth:hover {
+  color: white;
+  text-shadow: var(--glow-blue);
+}
+
+/* === Animations === */
+@keyframes float-slow {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    transform: translateY(-10%) scale(1.05);
+  }
+}
+
+@keyframes wave {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 200% 0%;
+  }
+}
+
+@keyframes card-appear {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* === Responsive Design - Desktop First === */
+@media (max-width: 1200px) {
+  .auth-content {
+    flex-direction: column;
+    width: 100%;
+    height: auto;
+    gap: 1rem;
+    padding: 2rem;
+  }
+  
+  .left-panel, .right-panel {
+    width: 100%;
+    padding: 1rem;
+  }
+  
+  .auth-card {
+    max-width: 600px;
+    padding: 2.5rem;
+  }
+  
+  .logo-text {
+    font-size: 4rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .auth-card {
+    padding: 2rem;
+  }
+  
+  .logo-text {
+    font-size: 3.5rem;
+  }
+  
+  .card-header h2 {
+    font-size: 2.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-card {
+    padding: 1.5rem;
+  }
+  
+  .logo-text {
+    font-size: 3rem;
+  }
+  
+  .card-header h2 {
+    font-size: 2rem;
+  }
+  
+  input {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+  
+  .submit-btn {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+}
+
+/* === Eco-Themed Branding Elements === */
+.eco-icon {
+  position: absolute;
+  width: 150px;
+  height: 150px;
+  background: var(--gradient-mixed);
+  opacity: 0.1;
+  border-radius: 50%;
+  animation: pulse 4s infinite alternate;
+}
+
+.eco-icon-1 {
+  top: 10%;
+  left: 10%;
+}
+
+.eco-icon-2 {
+  bottom: 15%;
+  right: 5%;
+}
+
+.eco-leaves {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 320'%3E%3Cpath fill='%239e00ff' opacity='0.1' d='M0,224L48,229.3C96,235,192,245,288,245.3C384,245,480,235,576,202.7C672,171,768,117,864,96C960,75,1056,85,1152,112C1248,139,1344,181,1392,202.7L1440,224L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z'%3E%3C/path%3E%3C/svg%3E");
+  background-size: cover;
+  opacity: 0.2;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.feature-icon {
+  width: 40px;
+  height: 40px;
+  margin-right: 1rem;
+  background: var(--gradient-blue);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: var(--glow-blue);
+}
+
+.feature-text {
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.15;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.1;
+  }
+}
