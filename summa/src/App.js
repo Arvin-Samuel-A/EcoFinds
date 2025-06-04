@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { Search, Heart, ShoppingCart, Star, Leaf, Recycle, Users, Award, ArrowRight, Menu, X, User, LogOut } from 'lucide-react';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { AuthProvider, useAuth } from './AuthContext';
-import Login from './Login';
-import Signup from './Signup';
-import Dashboard from './Dashboard';
-
+import { AuthProvider, useAuth } from './pages/AuthContext';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import Dashboard from './pages/Dashboard';
+import ProductListingManager from './pages/ProductListingManager';
+import CartPage from './pages/CartPage';
 const API_BASE_URL = 'http://localhost:5000/api';
 
 // Main Home Component
@@ -269,9 +270,10 @@ const Home = () => {
                   <span className="me-2">Start Shopping</span>
                   <ArrowRight size={20} />
                 </button>
-                <button className="btn btn-outline-primary px-4 py-3 rounded-4 fw-semibold">
-                  List Your Items
-                </button>
+                 <Link to="/productmanager" className="btn btn-outline-primary px-4 py-3 rounded-4 fw-semibold">
+                  List Your Items 
+                </Link>
+                
               </div>
             </div>
 
@@ -520,6 +522,8 @@ const App = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/productmanager" element={<ProductListingManager />} />
+          <Route path="/cart" element={<CartPage />} />
         </Routes>
       </Router>
     </AuthProvider>
