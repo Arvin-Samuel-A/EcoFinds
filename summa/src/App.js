@@ -5,6 +5,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import { AuthProvider, useAuth } from './AuthContext';
 import Login from './Login';
 import Signup from './Signup';
+import Dashboard from './Dashboard';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -518,6 +519,7 @@ const App = () => {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/dashboard" element={<Dashboard />} />
         </Routes>
       </Router>
     </AuthProvider>
