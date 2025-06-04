@@ -22,6 +22,7 @@ import {
 
 import cors from 'cors';
 import { upload, uploadToGCP, deleteFromGCP } from './gcp-storage.js';
+import { PredictionServiceClient } from '@google-cloud/aiplatform';
 
 dotenv.config();
 
@@ -704,6 +705,187 @@ app.delete('/api/products/:id', protect, async (req, res) => {
     }
 });
 
+app.get('/api/search', async (req, res) => {
+  try {
+    // Extract query parameters
+    const pageSize = Number(req.query.limit) || 20;
+    const page = Number(req.query.page) || 1;
+    const keyword = req.query.keyword ? req.query.keyword.trim() : null;
+    const categoryId = req.query.category ? req.query.category.trim() : null;
+    const minPrice = req.query.minPrice ? Number(req.query.minPrice) : null;
+    const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : null;
+    const minRating = req.query.rating ? Number(req.query.rating) : null;
+    const inStock = req.query.inStock === 'true';
+    const sortBy = req.query.sortBy || 'newest';
+    const order = req.query.order === 'asc' ? 1 : -1;
+
+    // Build filter object
+    const filter = {};
+
+    // Keyword filter (search in name OR description, case-insensitive)
+    if (keyword) {
+      filter.$or = [
+        { name: { $regex: keyword, $options: 'i' } },
+        { description: { $regex: keyword, $options: 'i' } },
+      ];
+    }
+
+    // Category filter
+    if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
+      filter.categories = mongoose.Types.ObjectId(categoryId);
+    }
+
+    // Price range filter
+    if (minPrice !== null || maxPrice !== null) {
+      filter.price = {};
+      if (minPrice !== null) filter.price.$gte = minPrice;
+      if (maxPrice !== null) filter.price.$lte = maxPrice;
+    }
+
+    // Rating filter (rating >= minRating)
+    if (minRating !== null) {
+      filter.rating = { $gte: minRating };
+    }
+
+    // In-stock filter (countInStock > 0)
+    if (inStock) {
+      filter.countInStock = { $gt: 0 };
+    }
+
+    // Determine sorting field
+    let sortField;
+    switch (sortBy) {
+      case 'price':
+        sortField = 'price';
+        break;
+      case 'rating':
+        sortField = 'rating';
+        break;
+      case 'newest':
+      default:
+        sortField = 'createdAt';
+        break;
+    }
+
+    // Count total matching documents
+    const total = await Product.countDocuments(filter);
+
+    // Fetch paginated products
+    const products = await Product.find(filter)
+      .populate('seller', 'name')
+      .populate('categories', 'name slug')
+      .sort({ [sortField]: order })
+      .skip(pageSize * (page - 1))
+      .limit(pageSize);
+
+    return res.json({
+      products,
+      page,
+      pages: Math.ceil(total / pageSize),
+      total,
+    });
+  } catch (err) {
+    console.error('Error in GET /api/search:', err);
+    return res.status(500).json({ message: 'Server error' });
+  }
+});
+
+
+// ---------------------------------------
+// Vertex AI Client Initialization
+// ---------------------------------------
+// Ensure you have set the following environment variables:
+//   VERTEX_PROJECT_ID – your GCP project ID
+//   VERTEX_LOCATION   – the region in which your endpoint resides (e.g., "us-central1")
+//   VERTEX_ENDPOINT_ID – the ID of your deployed recommendation endpoint
+const vertexClient = new PredictionServiceClient();
+
+const getVertexEndpointPath = () => {
+  const project = process.env.VERTEX_PROJECT_ID;
+  const location = process.env.VERTEX_LOCATION;
+  const endpoint = process.env.VERTEX_ENDPOINT_ID;
+  if (!project || !location || !endpoint) {
+    throw new Error(
+      'Missing Vertex AI configuration. Please set VERTEX_PROJECT_ID, VERTEX_LOCATION, and VERTEX_ENDPOINT_ID.'
+    );
+  }
+  return `projects/${project}/locations/${location}/endpoints/${endpoint}`;
+};
+
+// ---------------------------------------
+// Route: GET /api/users/profile/vertex-recommendations
+//    - Generate personalized recommendations by calling a Vertex AI endpoint.
+//    - Protected: requires valid JWT (protect middleware).
+//    - Logic:
+//        1. Fetch the user’s past purchased product IDs from Order documents.
+//        2. Build a “feature” object (e.g., { userHistory: [<productId1>, <productId2>, …] }).
+//        3. Call Vertex AI Predict API with that instance.
+//        4. Receive an array of recommended product IDs.
+//        5. Lookup those products in MongoDB and return full product details.
+//    - Query Params: limit (default: 10)
+// ---------------------------------------
+app.get('/api/users/profile/vertex-recommendations', protect, async (req, res) => {
+  try {
+    const userId = req.user._id.toString();
+    const limit = Number(req.query.limit) || 10;
+
+    // 1. Retrieve the user’s past orders
+    const pastOrders = await Order.find({ user: userId }).select('orderItems.product');
+    const purchasedProductIds = pastOrders
+      .flatMap(order => order.orderItems.map(item => item.product.toString()))
+      .filter((v, i, a) => a.indexOf(v) === i); // unique
+
+    // 2. Build the instance payload for Vertex AI
+    //    Here, we assume the deployed model expects an object with a 'user_history' key,
+    //    which is a list of product IDs (strings). Adjust field names/structure if your model differs.
+    const instance = {
+      user_history: purchasedProductIds,
+      // You can include other features here if your model requires them:
+      // e.g., user_profile: { age: 30, interests: ['electronics', 'books'] }, etc.
+    };
+
+    // 3. Prepare the Predict request
+    const endpointPath = getVertexEndpointPath();
+    const request = {
+      endpoint: endpointPath,
+      instances: [instance],
+      // parameters can be used to pass additional inference-time options; empty if not needed
+      parameters: {},
+    };
+
+    // 4. Call Vertex AI predict()
+    const [response] = await vertexClient.predict(request);
+    if (!response || !Array.isArray(response.predictions) || response.predictions.length === 0) {
+      return res.status(200).json({ recommendations: [] });
+    }
+
+    // 5. Extract recommended product IDs from the prediction response
+    //    We assume response.predictions[0] is something like { recommended_ids: ['id1', 'id2', ...] }
+    const prediction = response.predictions[0];
+    if (!prediction.recommended_ids || !Array.isArray(prediction.recommended_ids)) {
+      return res.status(200).json({ recommendations: [] });
+    }
+
+    // Limit the recommendations
+    const recommendedIds = prediction.recommended_ids.slice(0, limit);
+
+    // 6. Fetch product details from MongoDB
+    const objectIds = recommendedIds
+      .filter(id => mongoose.Types.ObjectId.isValid(id))
+      .map(id => mongoose.Types.ObjectId(id));
+
+    const recommendedProducts = await Product.find({ _id: { $in: objectIds } })
+      .populate('seller', 'name')
+      .populate('categories', 'name slug');
+
+    // 7. Return recommended products
+    return res.json({ recommendations: recommendedProducts });
+  } catch (err) {
+    console.error('Error in GET /api/users/profile/vertex-recommendations:', err);
+    // If Vertex AI fails, you can optionally fall back to a simpler in-app recommendation logic.
+    return res.status(500).json({ message: 'Server error in generating recommendations' });
+  }
+});
 
 // ---------------------------------------
 // 9. Error Handling for Unmatched Routes & General Errors
