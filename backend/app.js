@@ -20,10 +20,15 @@ import {
     ReportedReview,
 } from './orm.js';
 
+import cors from 'cors';
+import { upload, uploadToGCP, deleteFromGCP } from './gcp-storage.js';
+
 dotenv.config();
 
-const app = express();
+// Add CORS middleware after dotenv.config()
+app.use(cors());
 app.use(express.json());
+
 
 // ---------------------------------------
 // 1. MongoDB Connection
@@ -69,6 +74,31 @@ const protect = async (req, res, next) => {
     }
 };
 
+app.post('/api/upload/image', protect, upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No image file provided' });
+        }
+
+        const folder = req.query.folder || 'profiles'; // Default to profiles folder
+        const uploadResult = await uploadToGCP(req.file, folder);
+
+        return res.status(200).json({
+            message: 'Image uploaded successfully',
+            image: {
+                url: uploadResult.url,
+                gcpStoragePath: uploadResult.gcpStoragePath,
+                originalName: uploadResult.originalName,
+                mimeType: uploadResult.mimeType,
+                size: uploadResult.size,
+            },
+        });
+    } catch (error) {
+        console.error('Error uploading image:', error);
+        return res.status(500).json({ message: 'Failed to upload image' });
+    }
+});
+
 // ---------------------------------------
 // 3. Route: POST /api/users/register
 //    - Register a new user (buyer or seller)
@@ -81,14 +111,14 @@ app.post('/api/users/register', async (req, res) => {
             password,
             role,
             phone,
-            images, // Expecting an object: { url, gcpStoragePath, altText, isPrimary }
+            images, // Now expecting: { url, gcpStoragePath, altText }
         } = req.body;
 
         // Validate required fields
-        if (!name || !email || !password || !images || !images.url || !images.gcpStoragePath) {
+        if (!name || !email || !password) {
             return res
                 .status(400)
-                .json({ message: 'Name, email, password, and profile image (url & gcpStoragePath) are required' });
+                .json({ message: 'Name, email, and password are required' });
         }
 
         // Check if user already exists
@@ -101,19 +131,20 @@ app.post('/api/users/register', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(password, salt);
 
-        // Create user document, including profile image
+        // Create user document
         const user = new User({
             name: name.trim(),
             email: email.toLowerCase().trim(),
             passwordHash,
             role: role && ['buyer', 'seller', 'admin'].includes(role) ? role : 'buyer',
             phone: phone ? phone.trim() : undefined,
-            images: {
+            // Only add images if provided, otherwise leave undefined
+            images: images && images.url && images.gcpStoragePath ? {
                 url: images.url.trim(),
                 gcpStoragePath: images.gcpStoragePath.trim(),
-                altText: images.altText ? images.altText.trim() : '',
-                isPrimary: images.isPrimary === true,
-            },
+                altText: images.altText ? images.altText.trim() : name.trim(),
+                isPrimary: true,
+            } : undefined,
         });
 
         await user.save();
@@ -205,52 +236,39 @@ app.get('/api/users/profile', protect, async (req, res) => {
 //    - Update current user profile (protected)
 //    - Can update name, email, phone, and password
 // ---------------------------------------
-app.put('/api/users/profile', protect, async (req, res) => {
+app.put('/api/users/profile/image', protect, upload.single('image'), async (req, res) => {
     try {
-        const user = req.user; // from protect middleware
-        const { name, email, phone, password, images } = req.body;
+        const user = req.user;
 
-        if (name) user.name = name.trim();
-        if (email) user.email = email.toLowerCase().trim();
-        if (phone) user.phone = phone.trim();
-
-        if (password) {
-            const salt = await bcrypt.genSalt(10);
-            user.passwordHash = await bcrypt.hash(password, salt);
+        if (!req.file) {
+            return res.status(400).json({ message: 'No image file provided' });
         }
 
-        // Update profile image if provided
-        if (images) {
-            if (!images.url || !images.gcpStoragePath) {
-                return res
-                    .status(400)
-                    .json({ message: 'Profile image updates require both url and gcpStoragePath' });
-            }
-            user.images = {
-                url: images.url.trim(),
-                gcpStoragePath: images.gcpStoragePath.trim(),
-                altText: images.altText ? images.altText.trim() : user.images.altText,
-                isPrimary: images.isPrimary === true,
-            };
+        // Delete old image if exists
+        if (user.images && user.images.gcpStoragePath) {
+            await deleteFromGCP(user.images.gcpStoragePath);
         }
+
+        // Upload new image
+        const uploadResult = await uploadToGCP(req.file, 'profiles');
+
+        // Update user profile
+        user.images = {
+            url: uploadResult.url,
+            gcpStoragePath: uploadResult.gcpStoragePath,
+            altText: req.body.altText || user.name,
+            isPrimary: true,
+        };
 
         const updatedUser = await user.save();
 
         return res.json({
-            _id: updatedUser._id,
-            name: updatedUser.name,
-            email: updatedUser.email,
-            role: updatedUser.role,
-            phone: updatedUser.phone,
+            message: 'Profile image updated successfully',
             images: updatedUser.images,
-            addresses: updatedUser.addresses || [],
-            isVerified: updatedUser.isVerified,
-            updatedAt: updatedUser.updatedAt,
-            token: generateToken(updatedUser._id),
         });
-    } catch (err) {
-        console.error('Error in PUT /api/users/profile:', err);
-        return res.status(500).json({ message: 'Server error' });
+    } catch (error) {
+        console.error('Error updating profile image:', error);
+        return res.status(500).json({ message: 'Failed to update profile image' });
     }
 });
 

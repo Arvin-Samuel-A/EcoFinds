@@ -1,32 +1,22 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { Search, Heart, ShoppingCart, Star, Leaf, Recycle, Users, Award, ArrowRight, Menu, X, User, LogOut } from 'lucide-react';
 import 'bootstrap/dist/css/bootstrap.min.css';
+import { AuthProvider, useAuth } from './AuthContext';
+import Login from './Login';
+import Signup from './Signup';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
-const App = () => {
+// Main Home Component
+const Home = () => {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [user, setUser] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState('login');
-  const [authData, setAuthData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    role: 'buyer',
-    phone: '',
-    images: {
-      url: '',
-      gcpStoragePath: '',
-      altText: '',
-      isPrimary: true
-    }
-  });
 
   const heroSlides = [
     {
@@ -45,26 +35,6 @@ const App = () => {
       image: "🤝"
     }
   ];
-
-  const fetchUserProfile = async (token) => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/users/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-      } else {
-        localStorage.removeItem('token');
-      }
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-      localStorage.removeItem('token');
-    }
-  };
 
   const fetchProducts = useCallback(async (search = '', category = '') => {
     setLoading(true);
@@ -87,10 +57,6 @@ const App = () => {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      fetchUserProfile(token);
-    }
     fetchProducts();
   }, [fetchProducts]);
 
@@ -101,57 +67,9 @@ const App = () => {
     return () => clearInterval(timer);
   }, [heroSlides.length]);
 
-  const handleAuth = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    
-    try {
-      const endpoint = authMode === 'login' ? '/users/login' : '/users/register';
-      const payload = authMode === 'login' 
-        ? { email: authData.email, password: authData.password }
-        : authData;
-
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        localStorage.setItem('token', data.token);
-        setUser(data);
-        setShowAuthModal(false);
-        setAuthData({
-          name: '',
-          email: '',
-          password: '',
-          role: 'buyer',
-          phone: '',
-          images: {
-            url: '',
-            gcpStoragePath: '',
-            altText: '',
-            isPrimary: true
-          }
-        });
-      } else {
-        alert(data.message || 'Authentication failed');
-      }
-    } catch (error) {
-      console.error('Auth error:', error);
-      alert('Authentication failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
+    logout();
+    navigate('/');
   };
 
   const handleSearch = (e) => {
@@ -173,12 +91,12 @@ const App = () => {
       {/* Navigation */}
       <nav className="navbar navbar-expand-lg navbar-light bg-white bg-opacity-90 backdrop-blur shadow-lg sticky-top">
         <div className="container-xl">
-          <div className="navbar-brand d-flex align-items-center">
+          <Link to="/" className="navbar-brand d-flex align-items-center text-decoration-none">
             <div className="rounded-circle d-flex align-items-center justify-content-center me-2 gradient-btn" style={{width: '40px', height: '40px'}}>
               <Leaf className="text-white" size={24} />
             </div>
             <span className="fs-3 fw-bold gradient-text">EcoFinds</span>
-          </div>
+          </Link>
 
           <button 
             className="navbar-toggler d-lg-none"
@@ -238,12 +156,20 @@ const App = () => {
                   </button>
                 </div>
               ) : (
-                <button 
-                  onClick={() => setShowAuthModal(true)}
-                  className="btn gradient-btn text-white rounded-pill px-4"
-                >
-                  Sign In
-                </button>
+                <div className="d-flex gap-2">
+                  <Link 
+                    to="/login"
+                    className="btn btn-outline-primary rounded-pill px-4 text-decoration-none"
+                  >
+                    Sign In
+                  </Link>
+                  <Link 
+                    to="/signup"
+                    className="btn gradient-btn text-white rounded-pill px-4 text-decoration-none"
+                  >
+                    Sign Up
+                  </Link>
+                </div>
               )}
             </div>
           </div>
@@ -270,151 +196,26 @@ const App = () => {
                     </button>
                   </div>
                 ) : (
-                  <button 
-                    onClick={() => setShowAuthModal(true)}
-                    className="btn gradient-btn text-white w-100 rounded-pill mt-2"
-                  >
-                    Sign In
-                  </button>
+                  <div className="mt-2 d-flex flex-column gap-2">
+                    <Link 
+                      to="/login"
+                      className="btn btn-outline-primary w-100 rounded-pill text-decoration-none"
+                    >
+                      Sign In
+                    </Link>
+                    <Link 
+                      to="/signup"
+                      className="btn gradient-btn text-white w-100 rounded-pill text-decoration-none"
+                    >
+                      Sign Up
+                    </Link>
+                  </div>
                 )}
               </div>
             </div>
           </div>
         )}
       </nav>
-
-      {/* Auth Modal */}
-      {showAuthModal && (
-        <div className="modal d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  {authMode === 'login' ? 'Welcome Back' : 'Join EcoFinds'}
-                </h5>
-                <button 
-                  onClick={() => setShowAuthModal(false)}
-                  className="btn-close"
-                ></button>
-              </div>
-              
-              <div className="modal-body">
-                <form onSubmit={handleAuth}>
-                  {authMode === 'register' && (
-                    <>
-                      <div className="mb-3">
-                        <label className="form-label">Name</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          required
-                          value={authData.name}
-                          onChange={(e) => setAuthData({...authData, name: e.target.value})}
-                        />
-                      </div>
-                      
-                      <div className="mb-3">
-                        <label className="form-label">Phone</label>
-                        <input
-                          type="tel"
-                          className="form-control"
-                          value={authData.phone}
-                          onChange={(e) => setAuthData({...authData, phone: e.target.value})}
-                        />
-                      </div>
-                      
-                      <div className="mb-3">
-                        <label className="form-label">Role</label>
-                        <select
-                          className="form-select"
-                          value={authData.role}
-                          onChange={(e) => setAuthData({...authData, role: e.target.value})}
-                        >
-                          <option value="buyer">Buyer</option>
-                          <option value="seller">Seller</option>
-                        </select>
-                      </div>
-                      
-                      <div className="mb-3">
-                        <label className="form-label">Profile Image URL</label>
-                        <input
-                          type="url"
-                          className="form-control"
-                          required
-                          value={authData.images.url}
-                          onChange={(e) => setAuthData({
-                            ...authData, 
-                            images: {...authData.images, url: e.target.value}
-                          })}
-                          placeholder="https://example.com/image.jpg"
-                        />
-                      </div>
-                      
-                      <div className="mb-3">
-                        <label className="form-label">GCP Storage Path</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          required
-                          value={authData.images.gcpStoragePath}
-                          onChange={(e) => setAuthData({
-                            ...authData, 
-                            images: {...authData.images, gcpStoragePath: e.target.value}
-                          })}
-                          placeholder="profiles/user123.jpg"
-                        />
-                      </div>
-                    </>
-                  )}
-                  
-                  <div className="mb-3">
-                    <label className="form-label">Email</label>
-                    <input
-                      type="email"
-                      className="form-control"
-                      required
-                      value={authData.email}
-                      onChange={(e) => setAuthData({...authData, email: e.target.value})}
-                    />
-                  </div>
-                  
-                  <div className="mb-3">
-                    <label className="form-label">Password</label>
-                    <input
-                      type="password"
-                      className="form-control"
-                      required
-                      value={authData.password}
-                      onChange={(e) => setAuthData({...authData, password: e.target.value})}
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="btn gradient-btn text-white w-100"
-                  >
-                    {loading ? 'Processing...' : (authMode === 'login' ? 'Sign In' : 'Create Account')}
-                  </button>
-                </form>
-
-                <div className="text-center mt-3">
-                  <button
-                    onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
-                    className="btn btn-link text-decoration-none"
-                    style={{color: '#9333ea'}}
-                  >
-                    {authMode === 'login' 
-                      ? "Don't have an account? Sign up" 
-                      : "Already have an account? Sign in"
-                    }
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Hero Section */}
       <section className="py-5">
@@ -638,12 +439,12 @@ const App = () => {
                 >
                   Start Shopping Now
                 </button>
-                <button 
-                  onClick={() => user ? null : setShowAuthModal(true)}
-                  className="btn btn-outline-light px-4 py-3 rounded-4 fw-semibold"
+                <Link 
+                  to={user ? "#" : "/signup"}
+                  className="btn btn-outline-light px-4 py-3 rounded-4 fw-semibold text-decoration-none"
                 >
                   {user && user.role === 'seller' ? 'Add Product' : 'Become a Seller'}
-                </button>
+                </Link>
               </div>
             </div>
           </div>
@@ -705,6 +506,21 @@ const App = () => {
         </div>
       </footer>
     </div>
+  );
+};
+
+// Main App Component with Router
+const App = () => {
+  return (
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
   );
 };
 
