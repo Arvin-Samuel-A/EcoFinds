@@ -1,96 +1,308 @@
-import dotenv from "dotenv";
-import mongoose from "mongoose";
+// orm.js
+// Mongoose schemas and models for an Amazon-level e-commerce platform
+// Using ES Module syntax and designed to store image URLs hosted on GCP
 
-dotenv.config();
-const MONGO_URI = process.env.MONGO_URI;
+import mongoose from 'mongoose';
 
-const { Schema } = mongoose;
+const { Schema, model, Types } = mongoose;
 
-async function initDB() {
-    if (!MONGO_URI) {
-        throw new Error('MONGO_URI environment variable not set');
-    }
-    try {
-        await mongoose.connect(MONGO_URI);
-        console.log('Connected to MongoDB');
-    } catch (err) {
-        console.error('Error connecting to MongoDB:', err);
-        throw err;
-    }
-}
+/* ============================
+   1. Address Subschema
+   ============================ */
+const addressSchema = new Schema(
+    {
+        fullName: { type: String, required: true },
+        addressLine1: { type: String, required: true },
+        addressLine2: { type: String },
+        city: { type: String, required: true },
+        state: { type: String, required: true },
+        postalCode: { type: String, required: true },
+        country: { type: String, required: true },
+        phoneNumber: { type: String, required: true },
+        isDefault: { type: Boolean, default: false },
+    },
+    { _id: false }
+);
 
+/* ============================
+   2. User Schema & Model
+   ============================ */
 const userSchema = new Schema(
     {
         name: { type: String, required: true, trim: true },
         email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-        password: { type: String, required: true },
-        role: { type: String, enum: ['buyer', 'seller', 'admin'], default: 'buyer' },
-        bio: { type: String, trim: true },
-        location: { type: String, trim: true },
-        profile: { type: String },
+        passwordHash: { type: String, required: true }, // Store bcrypt or similar hash
+        role: {
+            type: String,
+            enum: ['buyer', 'seller', 'admin'],
+            default: 'buyer',
+        },
+        addresses: [addressSchema],
+        // Optionally, store payment methods, but sensitive info should be tokenized via a payment gateway
+        phone: { type: String },
+        isVerified: { type: Boolean, default: false },
+        images:
+        {
+            url: { type: String, required: true },               // e.g., https://storage.googleapis.com/my-bucket/image.jpg
+            gcpStoragePath: { type: String, required: true },     // e.g., my-bucket/images/product1234.jpg
+            altText: { type: String },                            // For accessibility/SEO
+            isPrimary: { type: Boolean, default: false },         // Flag the main display image
+        },
     },
     { timestamps: true }
 );
-const User = mongoose.model('User', userSchema);
 
+const User = model('User', userSchema);
 
+/* ============================
+   3. Category Schema & Model
+   ============================ */
+const categorySchema = new Schema(
+    {
+        name: { type: String, required: true, unique: true, trim: true },
+        slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
+        parent: { type: Types.ObjectId, ref: 'Category', default: null },
+        description: { type: String },
+    },
+    { timestamps: true }
+);
+
+const Category = model('Category', categorySchema);
+
+/* ============================
+   4. Review Schema & Model
+   ============================ */
+const reviewSchema = new Schema(
+    {
+        user: { type: Types.ObjectId, ref: 'User', required: true },
+        product: { type: Types.ObjectId, ref: 'Product', required: true },
+        rating: { type: Number, required: true, min: 1, max: 5 },
+        comment: { type: String },
+    },
+    { timestamps: true }
+);
+
+const Review = model('Review', reviewSchema);
+
+/* ============================
+   5. Product Schema & Model
+   ============================ */
 const productSchema = new Schema(
     {
-        title: { type: String, required: true, trim: true },
-        description: { type: String, trim: true },
+        seller: { type: Types.ObjectId, ref: 'User', required: true }, // The user who is selling this product
+        name: { type: String, required: true, trim: true },
+        slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
+        description: { type: String, required: true },
+        brand: { type: String },
+        // Array of category references (many-to-many)
+        categories: [{ type: Types.ObjectId, ref: 'Category' }],
         price: { type: Number, required: true, min: 0 },
-        seller: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-        images: [String],
-        category: String,
-        stock: { type: Number, default: 0, min: 0 },
+        countInStock: { type: Number, required: true, min: 0, default: 0 },
+        rating: { type: Number, default: 0 },
+        numReviews: { type: Number, default: 0 },
+        // Images stored on GCP: store the full public URL or GCS path
+        images: [
+            {
+                url: { type: String, required: true },               // e.g., https://storage.googleapis.com/my-bucket/image.jpg
+                gcpStoragePath: { type: String, required: true },     // e.g., my-bucket/images/product1234.jpg
+                altText: { type: String },                            // For accessibility/SEO
+                isPrimary: { type: Boolean, default: false },         // Flag the main display image
+            },
+        ],
+        // Optional fields for Amazon-like variants
+        variants: [
+            {
+                sku: { type: String, trim: true },
+                price: { type: Number, min: 0 },
+                countInStock: { type: Number, min: 0 },
+                attributes: { type: Map, of: String }, // e.g., { color: 'red', size: 'M' }
+            },
+        ],
+        // Specifications and bullet points (e.g., for product detail)
+        features: [{ type: String }],
+        specifications: [{ key: String, value: String }],
+        // For “Deal of the Day” or similar promotions
+        isFeatured: { type: Boolean, default: false },
+        featuredUntil: { type: Date },
     },
     { timestamps: true }
 );
-const Product = mongoose.model('Product', productSchema);
 
+const Product = model('Product', productSchema);
 
+/* ============================
+   6. Cart Schema & Model
+   ============================ */
 const cartItemSchema = new Schema(
     {
-        product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
-        quantity: { type: Number, default: 1, min: 1 },
+        product: { type: Types.ObjectId, ref: 'Product', required: true },
+        quantity: { type: Number, required: true, min: 1, default: 1 },
+        // Snapshot price at the time item was added
+        priceAtAddition: { type: Number, required: true, min: 0 },
     },
     { _id: false }
 );
+
 const cartSchema = new Schema(
     {
-        user: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+        user: { type: Types.ObjectId, ref: 'User', required: true, unique: true },
         items: [cartItemSchema],
+        updatedAt: { type: Date, default: Date.now },
     },
-    { timestamps: true }
+    { timestamps: false }
 );
-const Cart = mongoose.model('Cart', cartSchema);
 
+const Cart = model('Cart', cartSchema);
 
+/* ============================
+   7. Order Schema & Model
+   ============================ */
 const orderItemSchema = new Schema(
     {
-        product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },
-        quantity: { type: Number, default: 1, min: 1 },
+        product: { type: Types.ObjectId, ref: 'Product', required: true },
+        name: { type: String, required: true },
+        qty: { type: Number, required: true, min: 1 },
+        image: { type: String, required: true }, // URL snapshot at time of order
         price: { type: Number, required: true, min: 0 },
     },
     { _id: false }
 );
+
+const paymentResultSchema = new Schema(
+    {
+        paymentId: { type: String },
+        status: { type: String },
+        updateTime: { type: String },
+        emailAddress: { type: String },
+    },
+    { _id: false }
+);
+
+const shippingAddressSchema = new Schema(
+    {
+        fullName: { type: String, required: true },
+        addressLine1: { type: String, required: true },
+        addressLine2: { type: String },
+        city: { type: String, required: true },
+        state: { type: String, required: true },
+        postalCode: { type: String, required: true },
+        country: { type: String, required: true },
+        phoneNumber: { type: String, required: true },
+    },
+    { _id: false }
+);
+
 const orderSchema = new Schema(
     {
-        user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-        items: [orderItemSchema],
-        total: { type: Number, required: true, min: 0 },
-        status: { type: String, enum: ['pending', 'paid', 'shipped', 'completed', 'cancelled'], default: 'pending' },
+        user: { type: Types.ObjectId, ref: 'User', required: true },
+        orderItems: [orderItemSchema],
+        shippingAddress: shippingAddressSchema,
+        paymentMethod: { type: String, required: true }, // e.g., 'Stripe', 'PayPal', 'Razorpay'
+        paymentResult: paymentResultSchema,
+        itemsPrice: { type: Number, required: true, min: 0 },
+        taxPrice: { type: Number, required: true, min: 0 },
+        shippingPrice: { type: Number, required: true, min: 0 },
+        totalPrice: { type: Number, required: true, min: 0 },
+        isPaid: { type: Boolean, default: false },
+        paidAt: { type: Date },
+        isDelivered: { type: Boolean, default: false },
+        deliveredAt: { type: Date },
+        status: {
+            type: String,
+            enum: ['pending', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'returned'],
+            default: 'pending',
+        },
     },
     { timestamps: true }
 );
-const Order = mongoose.model('Order', orderSchema);
 
-export  {
-    initDB,
+const Order = model('Order', orderSchema);
+
+/* ============================
+   8. Wishlist Schema & Model
+   ============================ */
+const wishlistItemSchema = new Schema(
+    {
+        product: { type: Types.ObjectId, ref: 'Product', required: true },
+        addedAt: { type: Date, default: Date.now },
+    },
+    { _id: false }
+);
+
+const wishlistSchema = new Schema(
+    {
+        user: { type: Types.ObjectId, ref: 'User', required: true, unique: true },
+        items: [wishlistItemSchema],
+    },
+    { timestamps: true }
+);
+
+const Wishlist = model('Wishlist', wishlistSchema);
+
+/* ============================
+   9. Payment Method Schema & Model
+      (Optional: if tokenizing payment methods)
+   ============================ */
+const paymentMethodSchema = new Schema(
+    {
+        user: { type: Types.ObjectId, ref: 'User', required: true },
+        type: { type: String, enum: ['card', 'upi', 'netBanking', 'wallet'], required: true },
+        provider: { type: String, required: true }, // e.g., 'Visa', 'MasterCard', 'PayPal'
+        token: { type: String, required: true }, // Token returned by payment gateway
+        expiresAt: { type: Date },
+        isDefault: { type: Boolean, default: false },
+    },
+    { timestamps: true }
+);
+
+const PaymentMethod = model('PaymentMethod', paymentMethodSchema);
+
+/* ============================
+   10. Notification Schema & Model
+       (Optional: for order updates, promotions, etc.)
+   ============================ */
+const notificationSchema = new Schema(
+    {
+        user: { type: Types.ObjectId, ref: 'User', required: true },
+        type: { type: String, enum: ['order', 'promotion', 'system'], required: true },
+        message: { type: String, required: true },
+        isRead: { type: Boolean, default: false },
+    },
+    { timestamps: true }
+);
+
+const Notification = model('Notification', notificationSchema);
+
+/* ============================
+   11. Review Moderation Schema & Model
+       (Optional: track reported reviews)
+   ============================ */
+const reportedReviewSchema = new Schema(
+    {
+        review: { type: Types.ObjectId, ref: 'Review', required: true },
+        reportedBy: { type: Types.ObjectId, ref: 'User', required: true },
+        reason: { type: String, required: true },
+        isResolved: { type: Boolean, default: false },
+        resolvedAt: { type: Date },
+    },
+    { timestamps: true }
+);
+
+const ReportedReview = model('ReportedReview', reportedReviewSchema);
+
+/* ============================
+   12. Connect and Export All Models
+   ============================ */
+// (Assuming connection is established elsewhere — e.g., in app.js)
+export {
     User,
+    Category,
+    Review,
     Product,
     Cart,
     Order,
+    Wishlist,
+    PaymentMethod,
+    Notification,
+    ReportedReview,
 };
-
-
