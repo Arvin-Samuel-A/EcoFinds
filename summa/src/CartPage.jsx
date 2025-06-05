@@ -128,7 +128,6 @@ const CartPage = () => {
                 ShopCart Pro
               </h1>
             </div>
-            
             <nav className="flex space-x-4">
               <button
                 onClick={() => setActiveTab('cart')}
