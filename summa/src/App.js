@@ -9,6 +9,9 @@ import ProductListingFeed from './ProductListingFeed';
 import ProductManager from './ProductManager'; // Updated to match your file name
 import MyListings from './MyListings';
 import CartPage from './CartPage';
+import Dashboard from './Dashboard';
+import ChatScreen from './ChatScreen';
+import MessagesList from './MessagesList';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -534,9 +537,12 @@ const App = () => {
           <Route path="/signup" element={<Signup />} />
           <Route path="/marketplace" element={<ProductListingFeed />} />
           <Route path="/productmanager" element={<ProductManager />} />
-          <Route path="/productmanager/:id" element={<ProductManager />} />
           <Route path="/my-listings" element={<MyListings />} />
           <Route path="/cart" element={<CartPage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/messages" element={<MessagesList />} />
+          <Route path="/chat/:otherUserId" element={<ChatScreen />} />
+          <Route path="/chat/:otherUserId/:productId" element={<ChatScreen />} />
         </Routes>
       </Router>
     </AuthProvider>

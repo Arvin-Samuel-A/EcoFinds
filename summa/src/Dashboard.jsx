@@ -19,6 +19,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
+import { Link } from 'react-router-dom';
 import './Dashboard.css';
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -420,17 +421,42 @@ const Dashboard = () => {
                 {/* Messages Tab */}
                 {activeTab === 'messages' && (
                   <div>
-                    <h5 className="card-title mb-4">Messages</h5>
+                    <div className="d-flex justify-content-between align-items-center mb-4">
+                      <h5 className="card-title mb-0">Messages</h5>
+                      <Link 
+                        to="/messages" 
+                        className="btn btn-outline-primary btn-sm"
+                      >
+                        View All Messages
+                      </Link>
+                    </div>
                     <div className="list-group">
-                      {dashboardData.messages.map(message => (
+                      {dashboardData.messages.slice(0, 5).map(message => (
                         <div key={message.id} className="list-group-item d-flex justify-content-between align-items-center">
                           <div>
                             <h6 className="mb-1">{message.subject}</h6>
-                            <p className="mb-1">From: {message.from}</p>
+                            <p className="mb-1 small text-muted">From: {message.from}</p>
                           </div>
-                          {message.unread && <span className="badge bg-primary">New</span>}
+                          <div className="d-flex align-items-center gap-2">
+                            {message.unread && <span className="badge bg-primary">New</span>}
+                            <Link 
+                              to={`/chat/${message.userId}`}
+                              className="btn btn-sm btn-outline-primary"
+                            >
+                              Reply
+                            </Link>
+                          </div>
                         </div>
                       ))}
+                      {dashboardData.messages.length === 0 && (
+                        <div className="text-center py-4">
+                          <MessageCircle size={48} className="text-muted mb-3" />
+                          <p className="text-muted">No messages yet</p>
+                          <Link to="/marketplace" className="btn btn-primary btn-sm">
+                            Browse Products
+                          </Link>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
