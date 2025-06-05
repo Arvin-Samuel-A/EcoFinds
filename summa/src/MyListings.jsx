@@ -92,11 +92,11 @@ const MyListings = () => {
       case 'active':
         return listing.status === 'active' && !listing.isAuction;
       case 'auction':
-        return listing.isAuction && new Date(listing.auctionEndDate) > new Date();
+        return (listing.isAuction || listing.type === 'auction') && new Date(listing.endTime) > new Date(); // Changed from auctionEndDate
       case 'sold':
         return listing.status === 'sold';
       case 'expired':
-        return listing.isAuction && new Date(listing.auctionEndDate) <= new Date();
+        return (listing.isAuction || listing.type === 'auction') && new Date(listing.endTime) <= new Date(); // Changed from auctionEndDate
       default:
         return true;
     }
@@ -129,9 +129,9 @@ const MyListings = () => {
     }
   };
 
-  const formatTimeRemaining = (endDate) => {
+  const formatTimeRemaining = (endTime) => { // Changed from endDate
     const now = new Date();
-    const end = new Date(endDate);
+    const end = new Date(endTime); // Changed from endDate
     const diff = end.getTime() - now.getTime();
 
     if (diff <= 0) return 'Ended';
@@ -146,8 +146,8 @@ const MyListings = () => {
   };
 
   const getStatusBadge = (listing) => {
-    if (listing.isAuction) {
-      const isExpired = new Date(listing.auctionEndDate) <= new Date();
+    if (listing.isAuction || listing.type === 'auction') {
+      const isExpired = new Date(listing.endTime) <= new Date(); // Changed from auctionEndDate
       if (isExpired) {
         return <span className="badge bg-secondary">Auction Ended</span>;
       }
@@ -370,11 +370,11 @@ const MyListings = () => {
                       case 'active':
                         return listing.status === 'active' && !listing.isAuction;
                       case 'auction':
-                        return listing.isAuction && new Date(listing.auctionEndDate) > new Date();
+                        return (listing.isAuction || listing.type === 'auction') && new Date(listing.endTime) > new Date(); // Changed from auctionEndDate
                       case 'sold':
                         return listing.status === 'sold';
                       case 'expired':
-                        return listing.isAuction && new Date(listing.auctionEndDate) <= new Date();
+                        return (listing.isAuction || listing.type === 'auction') && new Date(listing.endTime) <= new Date(); // Changed from auctionEndDate
                       default:
                         return true;
                     }
@@ -455,16 +455,16 @@ const MyListings = () => {
                         </div>
 
                         {/* Auction Timer */}
-                        {listing.isAuction && (
+                        {(listing.isAuction || listing.type === 'auction') && (
                           <div className="position-absolute bottom-0 start-0 end-0 bg-dark bg-opacity-75 text-white p-2">
                             <div className="d-flex align-items-center justify-content-between">
                               <div className="d-flex align-items-center">
                                 <Clock size={12} className="me-1" />
-                                <small>{formatTimeRemaining(listing.auctionEndDate)}</small>
+                                <small>{formatTimeRemaining(listing.endTime)}</small> {/* Changed from auctionEndDate */}
                               </div>
                               <div className="d-flex align-items-center">
                                 <Gavel size={12} className="me-1" />
-                                <small>₹{listing.currentBid || listing.minimumBid}</small>
+                                <small>₹{listing.currentPrice || listing.startPrice}</small> {/* Changed from currentBid/minimumBid */}
                               </div>
                             </div>
                           </div>
@@ -486,7 +486,7 @@ const MyListings = () => {
                         {listing.isAuction && (
                           <div className="mb-2">
                             <small className="text-muted">
-                              Current Bid: <span className="fw-medium">₹{listing.currentBid || listing.minimumBid}</span>
+                              Current Bid: <span className="fw-medium">₹{listing.currentPrice || listing.startPrice}</span> {/* Changed from currentBid/minimumBid */}
                             </small>
                           </div>
                         )}
@@ -554,17 +554,17 @@ const MyListings = () => {
                                     </span>
                                   </div>
 
-                                  {listing.isAuction && (
+                                  {(listing.isAuction || listing.type === 'auction') && (
                                     <>
                                       <div className="col-auto">
                                         <small className="text-muted">
-                                          Current Bid: <span className="fw-medium">₹{listing.currentBid || listing.minimumBid}</span>
+                                          Current Bid: <span className="fw-medium">₹{listing.currentPrice || listing.startPrice}</span> {/* Changed from currentBid/minimumBid */}
                                         </small>
                                       </div>
                                       <div className="col-auto">
                                         <small className="text-muted d-flex align-items-center">
                                           <Clock size={10} className="me-1" />
-                                          {formatTimeRemaining(listing.auctionEndDate)}
+                                          {formatTimeRemaining(listing.endTime)} {/* Changed from auctionEndDate */}
                                         </small>
                                       </div>
                                     </>

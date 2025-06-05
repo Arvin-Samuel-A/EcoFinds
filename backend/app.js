@@ -926,15 +926,10 @@ app.get('/api/auctions', async (req, res) => {
 // ---------------------------------------
 app.get('/api/auctions/:id', async (req, res) => {
   try {
-    const auctionId = req.params.id;
-    if (!isValidId(auctionId)) {
-      return res.status(400).json({ message: 'Invalid auction ID' });
-    }
-
-    const auction = await Auction.findById(auctionId)
+    const auction = await Auction.findById(req.params.id)
       .populate('product', 'name slug images')
-      .populate('seller', 'name')
-      .lean();
+      .populate('seller', 'name');
+
     if (!auction) {
       return res.status(404).json({ message: 'Auction not found' });
     }
@@ -947,37 +942,32 @@ app.get('/api/auctions/:id', async (req, res) => {
 });
 
 // ---------------------------------------
-// 4. POST /api/auctions/:id/bid
-//    - Place a bid on a live auction (protected; only buyers)
+// 4. Route: POST /api/auctions/:id/bid
+//    - Place a bid on an auction (protected)
 //    - Body: { amount: number }
 // ---------------------------------------
 app.post('/api/auctions/:id/bid', protect, async (req, res) => {
   try {
     const userId = req.user._id;
-    if (req.user.role !== 'buyer') {
-      return res
-        .status(403)
-        .json({ message: 'Only buyers can place bids' });
-    }
+    const auction = await Auction.findById(req.params.id);
 
-    const auctionId = req.params.id;
-    if (!isValidId(auctionId)) {
-      return res.status(400).json({ message: 'Invalid auction ID' });
-    }
-
-    const auction = await Auction.findById(auctionId);
     if (!auction) {
       return res.status(404).json({ message: 'Auction not found' });
     }
-
-    // Must be in “live” status
-    const now = new Date();
-    if (now < auction.startTime || now > auction.endTime || auction.status !== 'live') {
-      return res.status(400).json({ message: 'Auction is not live' });
+    if (auction.status !== 'live') {
+      return res.status(400).json({ message: 'Cannot bid on a non-live auction' });
     }
 
-    const bidAmount = Number(req.body.amount);
-    if (isNaN(bidAmount) || bidAmount <= auction.currentPrice) {
+    const now = new Date();
+    if (now < auction.startTime) {
+      return res.status(400).json({ message: 'Auction has not started yet' });
+    }
+    if (now > auction.endTime) {
+      return res.status(400).json({ message: 'Auction has already ended' });
+    }
+
+    const bidAmount = Number(req.body.amount); // Make sure this matches frontend
+    if (isNaN(bidAmount) || bidAmount <= auction.currentPrice) { // Changed from currentBid
       return res
         .status(400)
         .json({ message: `Bid must exceed current price (${auction.currentPrice})` });
@@ -989,193 +979,25 @@ app.post('/api/auctions/:id/bid', protect, async (req, res) => {
       amount: bidAmount,
       timestamp: now,
     });
-    auction.currentPrice = bidAmount;
-    const updated = await auction.save();
+    auction.currentPrice = bidAmount; // Changed from currentBid
 
-    // Return updated auction (with bids array)
-    const populated = await Auction.findById(updated._id)
-      .populate('bids.bidder', 'name')
-      .lean();
-    return res.json(populated);
+    // If this is the first bid, set the auction status to live
+    if (auction.status === 'upcoming') {
+      auction.status = 'live';
+      auction.startTime = now; // Adjust start time to now
+    }
+
+    await auction.save();
+
+    return res.status(201).json({
+      message: 'Bid placed successfully',
+      auction,
+    });
   } catch (err) {
     console.error('Error in POST /api/auctions/:id/bid:', err);
     return res.status(500).json({ message: 'Server error' });
   }
 });
-
-// ---------------------------------------
-// 5. PATCH /api/auctions/:id/close
-//    - Manually close an auction (protected; only seller or admin)
-// ---------------------------------------
-app.patch('/api/auctions/:id/close', protect, async (req, res) => {
-  try {
-    const auctionId = req.params.id;
-    if (!isValidId(auctionId)) {
-      return res.status(400).json({ message: 'Invalid auction ID' });
-    }
-
-    const auction = await Auction.findById(auctionId);
-    if (!auction) {
-      return res.status(404).json({ message: 'Auction not found' });
-    }
-
-    // Only seller or admin can close
-    if (
-      auction.seller.toString() !== req.user._id.toString() &&
-      req.user.role !== 'admin'
-    ) {
-      return res
-        .status(403)
-        .json({ message: 'Access denied: not the auction owner or an admin' });
-    }
-
-    // If already ended or cancelled, cannot reopen
-    if (['ended', 'cancelled'].includes(auction.status)) {
-      return res.status(400).json({ message: 'Auction already ended or cancelled' });
-    }
-
-    auction.status = 'ended';
-    auction.endTime = new Date(); // force end now
-    const updated = await auction.save();
-    const populated = await Auction.findById(updated._id)
-      .populate('bids.bidder', 'name')
-      .lean();
-
-    return res.json(populated);
-  } catch (err) {
-    console.error('Error in PATCH /api/auctions/:id/close:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// ---------------------------------------
-// 6. PATCH /api/auctions/:id/cancel
-//    - Cancel an auction before it goes live (protected; only seller or admin)
-// ---------------------------------------
-app.patch('/api/auctions/:id/cancel', protect, async (req, res) => {
-  try {
-    const auctionId = req.params.id;
-    if (!isValidId(auctionId)) {
-      return res.status(400).json({ message: 'Invalid auction ID' });
-    }
-
-    const auction = await Auction.findById(auctionId);
-    if (!auction) {
-      return res.status(404).json({ message: 'Auction not found' });
-    }
-
-    // Only seller or admin can cancel
-    if (
-      auction.seller.toString() !== req.user._id.toString() &&
-      req.user.role !== 'admin'
-    ) {
-      return res
-        .status(403)
-        .json({ message: 'Access denied: not the auction owner or an admin' });
-    }
-
-    // Can only cancel if auction hasn’t started yet
-    const now = new Date();
-    if (now >= auction.startTime) {
-      return res
-        .status(400)
-        .json({ message: 'Cannot cancel: auction already live or ended' });
-    }
-
-    auction.status = 'cancelled';
-    const updated = await auction.save();
-    return res.json({ message: 'Auction cancelled successfully', auction: updated });
-  } catch (err) {
-    console.error('Error in PATCH /api/auctions/:id/cancel:', err);
-    return res.status(500).json({ message: 'Server error' });
-  }
-});
-
-app.get('/api/search', async (req, res) => {
-    try {
-        // Extract query parameters
-        const pageSize = Number(req.query.limit) || 20;
-        const page = Number(req.query.page) || 1;
-        const keyword = req.query.keyword ? req.query.keyword.trim() : null;
-        const categoryId = req.query.category ? req.query.category.trim() : null;
-        const minPrice = req.query.minPrice ? Number(req.query.minPrice) : null;
-        const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : null;
-        const minRating = req.query.rating ? Number(req.query.rating) : null;
-        const inStock = req.query.inStock === 'true';
-        const sortBy = req.query.sortBy || 'newest';
-        const order = req.query.order === 'asc' ? 1 : -1;
-
-        // Build filter object
-        const filter = {};
-
-        // Keyword filter (search in name OR description, case-insensitive)
-        if (keyword) {
-            filter.$or = [
-                { name: { $regex: keyword, $options: 'i' } },
-                { description: { $regex: keyword, $options: 'i' } },
-            ];
-        }
-
-        // Category filter
-        if (categoryId && mongoose.Types.ObjectId.isValid(categoryId)) {
-            filter.categories = mongoose.Types.ObjectId(categoryId);
-        }
-
-        // Price range filter
-        if (minPrice !== null || maxPrice !== null) {
-            filter.price = {};
-            if (minPrice !== null) filter.price.$gte = minPrice;
-            if (maxPrice !== null) filter.price.$lte = maxPrice;
-        }
-
-        // Rating filter (rating >= minRating)
-        if (minRating !== null) {
-            filter.rating = { $gte: minRating };
-        }
-
-        // In-stock filter (countInStock > 0)
-        if (inStock) {
-            filter.countInStock = { $gt: 0 };
-        }
-
-        // Determine sorting field
-        let sortField;
-        switch (sortBy) {
-            case 'price':
-                sortField = 'price';
-                break;
-            case 'rating':
-                sortField = 'rating';
-                break;
-            case 'newest':
-            default:
-                sortField = 'createdAt';
-                break;
-        }
-
-        // Count total matching documents
-        const total = await Product.countDocuments(filter);
-
-        // Fetch paginated products
-        const products = await Product.find(filter)
-            .populate('seller', 'name')
-            .populate('categories', 'name slug')
-            .sort({ [sortField]: order })
-            .skip(pageSize * (page - 1))
-            .limit(pageSize);
-
-        return res.json({
-            products,
-            page,
-            pages: Math.ceil(total / pageSize),
-            total,
-        });
-    } catch (err) {
-        console.error('Error in GET /api/search:', err);
-        return res.status(500).json({ message: 'Server error' });
-    }
-});
-
 
 // ---------------------------------------
 // Vertex AI Client Initialization
@@ -2237,6 +2059,72 @@ app.get('/api/tickets/my', protect, async (req, res) => {
         return res.status(500).json({ message: 'Server error' });
     }
 });
+
+// 2.3 Get full details (including message thread) of a specific ticket owned by the user
+//     GET /api/tickets/my/:ticketId
+//     Protected
+
+
+app.post('/api/tickets', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { type, relatedOrder, relatedProduct, subject, description } = req.body;
+
+        // Validate required fields
+        if (!['complaint', 'dispute'].includes(type)) {
+            return res.status(400).json({ message: 'Type must be either "complaint" or "dispute"' });
+        }
+        if (!subject || !subject.trim() || !description || !description.trim()) {
+            return res.status(400).json({ message: 'Subject and description are required' });
+        }
+
+        // If dispute, relatedOrder is required and must exist
+        if (type === 'dispute') {
+            if (!relatedOrder || !mongoose.Types.ObjectId.isValid(relatedOrder)) {
+                return res.status(400).json({ message: 'A valid relatedOrder ID is required for disputes' });
+            }
+            const order = await Order.findById(relatedOrder);
+            if (!order || order.user.toString() !== userId.toString()) {
+                return res.status(404).json({ message: 'Order not found or not owned by you' });
+            }
+        }
+
+        // If complaint, relatedProduct is required and must exist
+        if (type === 'complaint') {
+            if (!relatedProduct || !mongoose.Types.ObjectId.isValid(relatedProduct)) {
+                return res.status(400).json({ message: 'A valid relatedProduct ID is required for complaints' });
+            }
+            const product = await Product.findById(relatedProduct);
+            if (!product) {
+                return res.status(404).json({ message: 'Product not found' });
+            }
+        }
+
+        const newTicket = new Ticket({
+            user: userId,
+            type,
+            relatedOrder: type === 'dispute' ? relatedOrder : undefined,
+            relatedProduct: type === 'complaint' ? relatedProduct : undefined,
+            subject: subject.trim(),
+            description: description.trim(),
+            status: 'open',
+            messages: [
+                {
+                    sender: userId,
+                    content: description.trim(),
+                },
+            ],
+            assignedTo: null,
+        });
+
+        const created = await newTicket.save();
+        return res.status(201).json(created);
+    } catch (err) {
+        console.error('Error in POST /api/tickets:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
 
 // 2.3 Get full details (including message thread) of a specific ticket owned by the user
 //     GET /api/tickets/my/:ticketId

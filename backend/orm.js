@@ -374,10 +374,12 @@ const auctionSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
     description: { type: String, required: true, trim: true },
-    startingBid: { type: Number, required: true, min: 0 },
-    currentBid: { type: Number, required: true, min: 0 },
+    product: { type: mongoose.Types.ObjectId, ref: 'Product' }, // Add this field
+    startPrice: { type: Number, required: true, min: 0 }, // Rename from startingBid
+    currentPrice: { type: Number, required: true, min: 0 }, // Rename from currentBid
     reservePrice: { type: Number, min: 0 },
-    endDate: { type: Date, required: true },
+    startTime: { type: Date, required: true }, // Add this field
+    endTime: { type: Date, required: true }, // Rename from endDate
     category: { type: String, required: true },
     condition: { type: String, required: true },
     images: [
@@ -398,14 +400,12 @@ const auctionSchema = new mongoose.Schema(
     ],
     status: {
       type: String,
-      enum: ['active', 'ended', 'cancelled'],
-      default: 'active',
+      enum: ['upcoming', 'live', 'ended', 'cancelled'], // Update enum values
+      default: 'upcoming',
     },
   },
   { timestamps: true }
 );
-
-const Auction = model('Auction', auctionSchema);
 
 
 /* ============================

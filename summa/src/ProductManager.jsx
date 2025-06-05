@@ -182,12 +182,18 @@ const ProductManager = () => {
       
       if (formData.isAuction) {
         // Create auction item
+        const startTime = new Date(); // Start immediately
+        const endTime = new Date();
+        endTime.setDate(endTime.getDate() + parseInt(formData.auctionDuration));
+
         const auctionData = {
           title: formData.name.trim(),
           description: formData.description.trim(),
-          startingBid: parseFloat(formData.minimumBid),
+          startPrice: parseFloat(formData.minimumBid), // Changed from startingBid
+          currentPrice: parseFloat(formData.minimumBid), // Changed from currentBid
           reservePrice: formData.reservePrice ? parseFloat(formData.reservePrice) : undefined,
-          endDate: calculateAuctionEndDate(formData.auctionDuration),
+          startTime: startTime.toISOString(), // Added startTime
+          endTime: endTime.toISOString(), // Changed from endDate
           category: formData.category,
           condition: formData.condition,
           images: uploadedImages.map((img, index) => ({
@@ -197,7 +203,7 @@ const ProductManager = () => {
             isPrimary: index === 0
           })),
           seller: user._id,
-          status: 'active'
+          status: 'upcoming' // Changed from 'active'
         };
 
         const response = await createAuction(auctionData);

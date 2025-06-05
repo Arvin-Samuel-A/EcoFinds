@@ -52,7 +52,7 @@ const Home = () => {
       if (search) params.append('keyword', search);
       if (category) params.append('category', category);
       params.append('limit', '8');
-      
+
       const response = await fetch(`${API_BASE_URL}/products?${params}`);
       if (response.ok) {
         const data = await response.json();
@@ -101,13 +101,13 @@ const Home = () => {
       <nav className="navbar navbar-expand-lg navbar-light bg-white bg-opacity-90 backdrop-blur shadow-lg sticky-top">
         <div className="container-xl">
           <Link to="/" className="navbar-brand d-flex align-items-center text-decoration-none">
-            <div className="rounded-circle d-flex align-items-center justify-content-center me-2 gradient-btn" style={{width: '40px', height: '40px'}}>
+            <div className="rounded-circle d-flex align-items-center justify-content-center me-2 gradient-btn" style={{ width: '40px', height: '40px' }}>
               <Leaf className="text-white" size={24} />
             </div>
             <span className="fs-3 fw-bold gradient-text">EcoFinds</span>
           </Link>
 
-          <button 
+          <button
             className="navbar-toggler d-lg-none"
             type="button"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -141,23 +141,23 @@ const Home = () => {
                 <ShoppingCart size={20} />
                 <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-warning">2</span>
               </button>
-              
+
               {user ? (
                 <div className="d-flex align-items-center">
                   <div className="d-flex align-items-center me-3">
                     {user.images?.url ? (
-                      <img 
-                        src={user.images.url} 
+                      <img
+                        src={user.images.url}
                         alt={user.images.altText || user.name}
                         className="rounded-circle me-2"
-                        style={{width: '32px', height: '32px', objectFit: 'cover'}}
+                        style={{ width: '32px', height: '32px', objectFit: 'cover' }}
                       />
                     ) : (
                       <User size={32} className="text-muted me-2" />
                     )}
                     <span className="small fw-medium">{user.name}</span>
                   </div>
-                  <button 
+                  <button
                     onClick={handleLogout}
                     className="btn"
                   >
@@ -166,13 +166,13 @@ const Home = () => {
                 </div>
               ) : (
                 <div className="d-flex gap-2">
-                  <Link 
+                  <Link
                     to="/login"
                     className="btn btn-outline-primary rounded-pill px-4 text-decoration-none"
                   >
                     Sign In
                   </Link>
-                  <Link 
+                  <Link
                     to="/signup"
                     className="btn gradient-btn text-white rounded-pill px-4 text-decoration-none"
                   >
@@ -193,11 +193,11 @@ const Home = () => {
                 <Link to="/productmanager" className="btn text-start text-decoration-none">Sell</Link>
                 <button className="btn text-start">About</button>
                 <button className="btn text-start">Contact</button>
-                
+
                 {user ? (
                   <div className="mt-2">
                     <div className="small text-muted mb-2">Welcome, {user.name}</div>
-                    <button 
+                    <button
                       onClick={handleLogout}
                       className="btn btn-danger w-100 rounded-pill"
                     >
@@ -206,13 +206,13 @@ const Home = () => {
                   </div>
                 ) : (
                   <div className="mt-2 d-flex flex-column gap-2">
-                    <Link 
+                    <Link
                       to="/login"
                       className="btn btn-outline-primary w-100 rounded-pill text-decoration-none"
                     >
                       Sign In
                     </Link>
-                    <Link 
+                    <Link
                       to="/signup"
                       className="btn gradient-btn text-white w-100 rounded-pill text-decoration-none"
                     >
@@ -248,14 +248,14 @@ const Home = () => {
                   <span className="input-group-text bg-white border-0">
                     <Search size={20} className="text-muted" />
                   </span>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     className="form-control border-0 py-3"
-                    placeholder="Search for treasures..." 
+                    placeholder="Search for treasures..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
-                  <button 
+                  <button
                     type="submit"
                     disabled={loading}
                     className="btn gradient-btn text-white px-4"
@@ -278,7 +278,7 @@ const Home = () => {
                   <ArrowRight size={20} />
                 </Link>
                 <Link to="/productmanager" className="btn btn-outline-primary px-4 py-3 rounded-4 fw-semibold text-decoration-none">
-                  List Your Items 
+                  List Your Items
                 </Link>
               </div>
             </div>
@@ -293,11 +293,10 @@ const Home = () => {
                   <div className="row">
                     {[0, 1, 2].map((index) => (
                       <div key={index} className="col-4">
-                        <div 
-                          className={`rounded-pill mx-auto ${
-                            index === currentSlide ? 'bg-primary' : 'bg-light'
-                          }`}
-                          style={{height: '8px', transition: 'all 0.3s'}}
+                        <div
+                          className={`rounded-pill mx-auto ${index === currentSlide ? 'bg-primary' : 'bg-light'
+                            }`}
+                          style={{ height: '8px', transition: 'all 0.3s' }}
                         />
                       </div>
                     ))}
@@ -321,8 +320,8 @@ const Home = () => {
             ].map((stat, index) => (
               <div key={index} className="col-6 col-lg-3 text-center">
                 <div className="rounded-4 d-inline-flex align-items-center justify-content-center mb-3"
-                     style={{width: '64px', height: '64px', background: 'linear-gradient(135deg, #ede9fe, #fed7aa)'}}>
-                  <stat.icon size={32} style={{color: '#9333ea'}} />
+                  style={{ width: '64px', height: '64px', background: 'linear-gradient(135deg, #ede9fe, #fed7aa)' }}>
+                  <stat.icon size={32} style={{ color: '#9333ea' }} />
                 </div>
                 <div className="display-6 fw-bold text-dark mb-2">{stat.value}</div>
                 <div className="text-muted">{stat.label}</div>
@@ -333,13 +332,13 @@ const Home = () => {
       </section>
 
       {/* Categories Section */}
-      <section className="py-5" style={{background: 'linear-gradient(135deg, #faf5ff, #fef3c7)'}}>
+      <section className="py-5" style={{ background: 'linear-gradient(135deg, #faf5ff, #fef3c7)' }}>
         <div className="container-xl">
           <div className="text-center mb-5">
             <h2 className="display-5 fw-bold text-dark mb-3">
               Explore Popular Categories
             </h2>
-            <p className="fs-5 text-muted mx-auto" style={{maxWidth: '600px'}}>
+            <p className="fs-5 text-muted mx-auto" style={{ maxWidth: '600px' }}>
               Discover amazing finds across various categories, from vintage electronics to designer fashion
             </p>
           </div>
@@ -347,10 +346,10 @@ const Home = () => {
           <div className="row g-4">
             {defaultCategories.map((category, index) => (
               <div key={index} className="col-6 col-md-4 col-lg-2">
-                <div 
+                <div
                   onClick={() => navigate('/marketplace')}
                   className="card h-100 text-center border-0 shadow-sm card-hover"
-                  style={{cursor: 'pointer'}}
+                  style={{ cursor: 'pointer' }}
                 >
                   <div className="card-body p-4">
                     <div className="display-6 mb-3">{category.icon}</div>
@@ -371,7 +370,7 @@ const Home = () => {
             <h2 className="display-5 fw-bold text-dark mb-3">
               {searchTerm ? `Search Results for "${searchTerm}"` : 'Featured Finds'}
             </h2>
-            <p className="fs-5 text-muted mx-auto" style={{maxWidth: '600px'}}>
+            <p className="fs-5 text-muted mx-auto" style={{ maxWidth: '600px' }}>
               {searchTerm ? 'Products matching your search' : 'Handpicked treasures from our community of conscious sellers'}
             </p>
           </div>
@@ -388,13 +387,13 @@ const Home = () => {
               {products.length > 0 ? products.map((product) => (
                 <div key={product._id} className="col-md-6 col-lg-3">
                   <div className="card h-100 border-0 shadow-lg card-hover">
-                    <div className="p-4 text-center" style={{background: 'linear-gradient(135deg, #ede9fe, #fed7aa)'}}>
+                    <div className="p-4 text-center" style={{ background: 'linear-gradient(135deg, #ede9fe, #fed7aa)' }}>
                       {product.images && product.images.length > 0 ? (
-                        <img 
-                          src={product.images[0].url} 
+                        <img
+                          src={product.images[0].url}
                           alt={product.images[0].altText || product.name}
                           className="img-fluid rounded"
-                          style={{height: '128px', width: '100%', objectFit: 'cover'}}
+                          style={{ height: '128px', width: '100%', objectFit: 'cover' }}
                         />
                       ) : (
                         <div className="display-4">📦</div>
@@ -403,7 +402,7 @@ const Home = () => {
                     <div className="card-body">
                       <h6 className="card-title fw-semibold">{product.name}</h6>
                       <div className="d-flex justify-content-between align-items-center mb-3">
-                        <span className="h5 fw-bold" style={{color: '#9333ea'}}>
+                        <span className="h5 fw-bold" style={{ color: '#9333ea' }}>
                           ₹{product.price.toLocaleString()}
                         </span>
                         <div className="d-flex align-items-center">
@@ -430,7 +429,7 @@ const Home = () => {
 
           {/* View All Products Button */}
           <div className="text-center mt-5">
-            <Link 
+            <Link
               to="/marketplace"
               className="btn btn-outline-primary px-5 py-3 rounded-4 fw-semibold text-decoration-none"
             >
@@ -441,14 +440,14 @@ const Home = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-5 text-white" style={{background: 'linear-gradient(135deg, #9333ea, #f97316)'}}>
+      <section className="py-5 text-white" style={{ background: 'linear-gradient(135deg, #9333ea, #f97316)' }}>
         <div className="container-xl text-center">
           <div className="row justify-content-center">
             <div className="col-lg-8">
               <h2 className="display-4 fw-bold mb-3">
                 Ready to Make a Difference?
               </h2>
-              <p className="fs-5 mb-4" style={{color: 'rgba(255,255,255,0.9)'}}>
+              <p className="fs-5 mb-4" style={{ color: 'rgba(255,255,255,0.9)' }}>
                 Join thousands of eco-conscious users who are transforming the way we shop and sell
               </p>
               <div className="d-flex flex-column flex-sm-row gap-3 justify-content-center">
@@ -458,7 +457,7 @@ const Home = () => {
                 >
                   Start Shopping Now
                 </Link>
-                <Link 
+                <Link
                   to={user ? "/productmanager" : "/signup"}
                   className="btn btn-outline-light px-4 py-3 rounded-4 fw-semibold text-decoration-none"
                 >
@@ -476,8 +475,8 @@ const Home = () => {
           <div className="row g-4">
             <div className="col-md-3">
               <div className="d-flex align-items-center mb-3">
-                <div className="rounded-circle d-flex align-items-center justify-content-center me-2 gradient-btn" 
-                     style={{width: '32px', height: '32px'}}>
+                <div className="rounded-circle d-flex align-items-center justify-content-center me-2 gradient-btn"
+                  style={{ width: '32px', height: '32px' }}>
                   <Leaf size={20} className="text-white" />
                 </div>
                 <span className="fs-5 fw-bold">EcoFinds</span>
@@ -486,7 +485,7 @@ const Home = () => {
                 Building a sustainable future, one transaction at a time.
               </p>
             </div>
-            
+
             <div className="col-md-3">
               <h6 className="fw-semibold mb-3">Marketplace</h6>
               <div className="d-flex flex-column gap-2">
@@ -496,7 +495,7 @@ const Home = () => {
                 <button className="btn btn-link text-muted text-start p-0">Featured</button>
               </div>
             </div>
-            
+
             <div className="col-md-3">
               <h6 className="fw-semibold mb-3">Support</h6>
               <div className="d-flex flex-column gap-2">
@@ -506,7 +505,7 @@ const Home = () => {
                 <button className="btn btn-link text-muted text-start p-0">Contact Us</button>
               </div>
             </div>
-            
+
             <div className="col-md-3">
               <h6 className="fw-semibold mb-3">Company</h6>
               <div className="d-flex flex-column gap-2">
@@ -517,7 +516,7 @@ const Home = () => {
               </div>
             </div>
           </div>
-          
+
           <hr className="my-4" />
           <div className="text-center text-muted">
             <p>&copy; 2025 EcoFinds. All rights reserved. Built with 💚 for a sustainable future.</p>
@@ -545,6 +544,7 @@ const App = () => {
           <Route path="/messages" element={<MessagesList />} />
           <Route path="/chat/:otherUserId" element={<ChatScreen />} />
           <Route path="/chat/:otherUserId/:productId" element={<ChatScreen />} />
+          <Route path="/auction/:auctionId" element={<ProductDetailPage />} />
           <Route path="/product/:productId" element={<ProductDetailPage />} />
         </Routes>
       </Router>

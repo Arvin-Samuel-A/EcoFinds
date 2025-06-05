@@ -496,7 +496,7 @@ const ProductListingFeed = () => {
                   className={viewMode === 'grid' ? 'col-6 col-md-4 col-lg-3' : 'col-12'}
                 >
                   <Link 
-                    to={`/product/${product._id}`} 
+                    to={product.type === 'auction' ? `/auction/${product._id}` : `/product/${product._id}`} 
                     className="text-decoration-none text-dark"
                   >
                     {viewMode === 'grid' ? (
