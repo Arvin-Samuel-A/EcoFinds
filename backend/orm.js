@@ -27,26 +27,30 @@ const addressSchema = new Schema(
 /* ============================
    2. User Schema & Model
    ============================ */
+// Add rating field to User schema:
+
 const userSchema = new Schema(
     {
         name: { type: String, required: true, trim: true },
         email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-        passwordHash: { type: String, required: true }, // Store bcrypt or similar hash
+        passwordHash: { type: String, required: true },
         role: {
             type: String,
             enum: ['buyer', 'seller', 'admin'],
             default: 'buyer',
         },
         addresses: [addressSchema],
-        // Optionally, store payment methods, but sensitive info should be tokenized via a payment gateway
         phone: { type: String },
         isVerified: { type: Boolean, default: false },
-        images:
-        {
-            url: { type: String},               // e.g., https://storage.googleapis.com/my-bucket/image.jpg
-            gcpStoragePath: { type: String },     // e.g., my-bucket/images/product1234.jpg
-            altText: { type: String },                            // For accessibility/SEO
-            isPrimary: { type: Boolean },         // Flag the main display image
+        rating: { type: Number, default: 0, min: 0, max: 5 }, // Add seller rating
+        numRatings: { type: Number, default: 0 }, // Add number of ratings
+        bio: { type: String }, // Add seller bio
+        location: { type: String }, // Add location field
+        images: {
+            url: { type: String },
+            gcpStoragePath: { type: String },
+            altText: { type: String },
+            isPrimary: { type: Boolean },
         },
     },
     { timestamps: true }
@@ -407,6 +411,7 @@ const auctionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+const Auction = mongoose.model('Auction', auctionSchema);
 
 /* ============================
    12. Connect and Export All Models

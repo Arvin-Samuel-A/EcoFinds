@@ -62,6 +62,8 @@ import {
     ChatMessage,
     Ticket,
     Auction,
+    Conversation,
+    Message
 } from './orm.js';
 
 import { PredictionServiceClient } from '@google-cloud/aiplatform';
@@ -1725,6 +1727,70 @@ app.post('/api/wishlists/product/:productId', protect, async (req, res) => {
     }
 });
 
+
+// ---------------------------------------
+// 12. WISHLIST ROUTES
+// ---------------------------------------
+
+// Get user's wishlist
+app.get('/api/wishlists', protect, async (req, res) => {
+    try {
+        const wishlist = await Wishlist.findOne({ user: req.user._id })
+            .populate('items.product', 'name price images seller')
+            .populate('items.product.seller', 'name');
+
+        if (!wishlist) {
+            return res.json({ items: [] });
+        }
+
+        return res.json(wishlist);
+    } catch (error) {
+        console.error('Error fetching wishlist:', error);
+        return res.status(500).json({ message: 'Failed to fetch wishlist' });
+    }
+});
+
+// Add/remove product from wishlist
+app.post('/api/wishlists/product/:productId', protect, async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const userId = req.user._id;
+
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Invalid product ID' });
+        }
+
+        const product = await Product.findById(productId);
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        let wishlist = await Wishlist.findOne({ user: userId });
+        
+        if (!wishlist) {
+            wishlist = new Wishlist({ user: userId, items: [] });
+        }
+
+        const existingItem = wishlist.items.find(item => 
+            item.product.toString() === productId
+        );
+
+        if (existingItem) {
+            wishlist.items = wishlist.items.filter(item => 
+                item.product.toString() !== productId
+            );
+            await wishlist.save();
+            return res.json({ message: 'Removed from wishlist', inWishlist: false });
+        } else {
+            wishlist.items.push({ product: productId });
+            await wishlist.save();
+            return res.json({ message: 'Added to wishlist', inWishlist: true });
+        }
+    } catch (error) {
+        console.error('Error updating wishlist:', error);
+        return res.status(500).json({ message: 'Failed to update wishlist' });
+    }
+});
 
 // ---------------------------------------
 // 13. VERTEX AI RECOMMENDATION ROUTES

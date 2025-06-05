@@ -62,6 +62,7 @@ import {
     ChatMessage,
     Ticket,
     Auction,
+    Message
 } from './orm.js';
 
 import { PredictionServiceClient } from '@google-cloud/aiplatform';

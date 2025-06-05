@@ -62,6 +62,8 @@ import {
     ChatMessage,
     Ticket,
     Auction,
+    Conversation,
+    Message
 } from './orm.js';
 
 import { PredictionServiceClient } from '@google-cloud/aiplatform';
@@ -1725,6 +1727,525 @@ app.post('/api/wishlists/product/:productId', protect, async (req, res) => {
     }
 });
 
+// ---------------------------------------
+// 13. SAVED SEARCHES ROUTES
+// ---------------------------------------
+
+// Create a new saved search
+
+// Add to cart
+app.post('/api/cart', protect, async (req, res) => {
+    try {
+        const { productId, quantity = 1 } = req.body;
+        const userId = req.user._id;
+
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Invalid product ID' });
+        }
+
+        const product = await Product.findById(productId);
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        if (product.countInStock < quantity) {
+            return res.status(400).json({ message: 'Insufficient stock' });
+        }
+
+        let cart = await Cart.findOne({ user: userId });
+        
+        if (!cart) {
+            cart = new Cart({ user: userId, items: [] });
+        }
+
+        const existingItemIndex = cart.items.findIndex(item => 
+            item.product.toString() === productId
+        );
+
+        if (existingItemIndex > -1) {
+            const newQuantity = cart.items[existingItemIndex].quantity + quantity;
+            if (newQuantity > product.countInStock) {
+                return res.status(400).json({ message: 'Not enough stock available' });
+            }
+            cart.items[existingItemIndex].quantity = newQuantity;
+        } else {
+            cart.items.push({
+                product: productId,
+                quantity: quantity,
+                priceAtAddition: product.price
+            });
+        }
+
+        cart.updatedAt = new Date();
+        await cart.save();
+
+        await cart.populate('items.product', 'name price images countInStock');
+        
+        return res.json({ message: 'Item added to cart', cart });
+    } catch (error) {
+        console.error('Error adding to cart:', error);
+        return res.status(500).json({ message: 'Failed to add to cart' });
+    }
+});
+
+// Update cart item quantity
+app.put('/api/cart', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { productId, quantity } = req.body;
+
+        if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Valid productId is required' });
+        }
+        const qty = Number(quantity);
+        if (qty < 1) {
+            return res.status(400).json({ message: 'Quantity must be at least 1' });
+        }
+
+        const product = await Product.findById(productId).select('countInStock');
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+        if (product.countInStock < qty) {
+            return res.status(400).json({ message: 'Requested quantity exceeds stock' });
+        }
+
+        const cart = await Cart.findOne({ user: userId });
+        if (!cart) {
+            return res.status(404).json({ message: 'Cart not found' });
+        }
+
+        const itemIndex = cart.items.findIndex((item) =>
+            item.product.equals(productId)
+        );
+        if (itemIndex === -1) {
+            return res.status(404).json({ message: 'Product not found in cart' });
+        }
+
+        cart.items[itemIndex].quantity = qty;
+        cart.updatedAt = Date.now();
+        const updatedCart = await cart.save();
+
+        const populatedCart = await Cart.findById(updatedCart._id).populate({
+            path: 'items.product',
+            select: 'name price images countInStock',
+        });
+
+        return res.json(populatedCart);
+    } catch (err) {
+        console.error('Error in PUT /api/cart:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Remove single product from cart
+app.delete('/api/cart/:productId', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { productId } = req.params;
+
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Invalid productId' });
+        }
+
+        const cart = await Cart.findOne({ user: userId });
+        if (!cart) {
+            return res.status(404).json({ message: 'Cart not found' });
+        }
+
+        const itemIndex = cart.items.findIndex((item) =>
+            item.product.equals(productId)
+        );
+        if (itemIndex === -1) {
+            return res.status(404).json({ message: 'Product not found in cart' });
+        }
+
+        cart.items.splice(itemIndex, 1);
+        cart.updatedAt = Date.now();
+        const updatedCart = await cart.save();
+
+        const populatedCart = await Cart.findById(updatedCart._id).populate({
+            path: 'items.product',
+            select: 'name price images countInStock',
+        });
+
+        return res.json(populatedCart);
+    } catch (err) {
+        console.error('Error in DELETE /api/cart/:productId:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Clear entire cart
+app.delete('/api/cart', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const cart = await Cart.findOne({ user: userId });
+        if (!cart) {
+            return res.status(404).json({ message: 'Cart not found' });
+        }
+
+        cart.items = [];
+        cart.updatedAt = Date.now();
+        await cart.save();
+
+        return res.json({ message: 'Cart cleared' });
+    } catch (err) {
+        console.error('Error in DELETE /api/cart:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// ---------------------------------------
+// 10. ORDER ROUTES
+// ---------------------------------------
+
+// Get user's orders (legacy route)
+app.get('/api/orders/myorders', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const pageSize = Number(req.query.limit) || 20;
+        const page = Number(req.query.page) || 1;
+
+        const total = await Order.countDocuments({ user: userId });
+
+        const orders = await Order.find({ user: userId })
+            .sort({ createdAt: -1 })
+            .skip(pageSize * (page - 1))
+            .limit(pageSize)
+            .select('orderItems totalPrice isPaid paidAt isDelivered deliveredAt createdAt');
+
+        return res.json({
+            orders,
+            page,
+            pages: Math.ceil(total / pageSize),
+            total,
+        });
+    } catch (err) {
+        console.error('Error in GET /api/orders/myorders:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Get user's orders with enhanced details
+app.get('/api/orders/my-orders', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 10;
+        const status = req.query.status;
+
+        const filter = { user: userId };
+        if (status) {
+            filter.status = status;
+        }
+
+        const total = await Order.countDocuments(filter);
+        const orders = await Order.find(filter)
+            .populate('orderItems.product', 'name images price seller categories')
+            .populate('seller', 'name email images rating location')
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        const ordersWithNumbers = orders.map(order => ({
+            ...order.toObject(),
+            orderNumber: order.orderNumber || `ECO${order._id.toString().slice(-8).toUpperCase()}`
+        }));
+
+        return res.json({
+            orders: ordersWithNumbers,
+            page,
+            pages: Math.ceil(total / limit),
+            total,
+            hasNextPage: page < Math.ceil(total / limit),
+            hasPrevPage: page > 1
+        });
+    } catch (error) {
+        console.error('Error fetching user orders:', error);
+        return res.status(500).json({ message: 'Failed to fetch orders' });
+    }
+});
+
+// Get single order details
+app.get('/api/orders/:orderId', protect, async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const userId = req.user._id;
+
+        if (!mongoose.Types.ObjectId.isValid(orderId)) {
+            return res.status(400).json({ message: 'Invalid order ID' });
+        }
+
+        const order = await Order.findOne({ 
+            _id: orderId, 
+            $or: [{ user: userId }, { seller: userId }] 
+        })
+        .populate('orderItems.product', 'name images price seller categories description')
+        .populate('user', 'name email images phone')
+        .populate('seller', 'name email images phone rating location')
+        .populate('shippingAddress');
+
+        if (!order) {
+            return res.status(404).json({ message: 'Order not found' });
+        }
+
+        const orderResponse = {
+            ...order.toObject(),
+            orderNumber: order.orderNumber || `ECO${order._id.toString().slice(-8).toUpperCase()}`
+        };
+
+        return res.json(orderResponse);
+    } catch (error) {
+        console.error('Error fetching order:', error);
+        return res.status(500).json({ message: 'Failed to fetch order details' });
+    }
+});
+
+// ---------------------------------------
+// 11. REVIEW ROUTES
+// ---------------------------------------
+
+// Add a review for a product
+app.post('/api/products/:id/reviews', protect, async (req, res) => {
+    try {
+        const productId = req.params.id;
+        const { rating, comment, orderId } = req.body;
+        const userId = req.user._id;
+
+        if (!rating || rating < 1 || rating > 5) {
+            return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+        }
+
+        const product = await Product.findById(productId);
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        if (orderId) {
+            const order = await Order.findOne({
+                _id: orderId,
+                user: userId,
+                'orderItems.product': productId,
+                status: 'delivered'
+            });
+
+            if (!order) {
+                return res.status(400).json({ 
+                    message: 'You can only review products you have purchased and received' 
+                });
+            }
+        }
+
+        const existingReview = await Review.findOne({
+            user: userId,
+            product: productId
+        });
+
+        if (existingReview) {
+            return res.status(400).json({ message: 'You have already reviewed this product' });
+        }
+
+        const review = new Review({
+            user: userId,
+            product: productId,
+            rating: Number(rating),
+            comment: comment ? comment.trim() : '',
+            orderId: orderId || null
+        });
+
+        await review.save();
+
+        const reviews = await Review.find({ product: productId });
+        const numReviews = reviews.length;
+        const avgRating = reviews.reduce((sum, review) => sum + review.rating, 0) / numReviews;
+
+        await Product.findByIdAndUpdate(productId, {
+            rating: avgRating,
+            numReviews: numReviews
+        });
+
+        await review.populate('user', 'name images');
+
+        return res.status(201).json({
+            message: 'Review added successfully',
+            review
+        });
+    } catch (error) {
+        console.error('Error creating review:', error);
+        return res.status(500).json({ message: 'Failed to add review' });
+    }
+});
+
+// Get reviews for a product
+app.get('/api/products/:id/reviews', async (req, res) => {
+    try {
+        const productId = req.params.id;
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 10;
+
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Invalid product ID' });
+        }
+
+        const total = await Review.countDocuments({ product: productId });
+        const reviews = await Review.find({ product: productId })
+            .populate('user', 'name images')
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit);
+
+        const ratingCounts = await Review.aggregate([
+            { $match: { product: mongoose.Types.ObjectId(productId) } },
+            { $group: { _id: '$rating', count: { $sum: 1 } } },
+            { $sort: { _id: -1 } }
+        ]);
+
+        const ratingDistribution = {};
+        [5, 4, 3, 2, 1].forEach(rating => {
+            const found = ratingCounts.find(r => r._id === rating);
+            ratingDistribution[rating] = found ? found.count : 0;
+        });
+
+        return res.json({
+            reviews,
+            page,
+            pages: Math.ceil(total / limit),
+            total,
+            ratingDistribution
+        });
+    } catch (error) {
+        console.error('Error fetching reviews:', error);
+        return res.status(500).json({ message: 'Failed to fetch reviews' });
+    }
+});
+
+// Delete a review
+app.delete('/api/reviews/:id', protect, async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const reviewId = req.params.id;
+
+        if (!mongoose.Types.ObjectId.isValid(reviewId)) {
+            return res.status(400).json({ message: 'Invalid review ID' });
+        }
+        const review = await Review.findById(reviewId);
+        if (!review) {
+            return res.status(404).json({ message: 'Review not found' });
+        }
+
+        if (
+            review.user.toString() !== userId.toString() &&
+            req.user.role !== 'admin'
+        ) {
+            return res.status(403).json({ message: 'Not authorized to delete this review' });
+        }
+
+        const productId = review.product;
+        await review.remove();
+
+        const remainingReviews = await Review.find({ product: productId }).select('rating');
+        const numReviews = remainingReviews.length;
+        const avgRating =
+            numReviews > 0
+                ? remainingReviews.reduce((acc, r) => acc + r.rating, 0) / numReviews
+                : 0;
+
+        await Product.findByIdAndUpdate(productId, {
+            numReviews,
+            rating: avgRating,
+        });
+
+        return res.json({ message: 'Review deleted successfully' });
+    } catch (err) {
+        console.error('Error in DELETE /api/reviews/:id:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// Get a single review by ID
+app.get('/api/reviews/:id', async (req, res) => {
+    try {
+        const reviewId = req.params.id;
+
+        if (!mongoose.Types.ObjectId.isValid(reviewId)) {
+            return res.status(400).json({ message: 'Invalid review ID' });
+        }
+        const review = await Review.findById(reviewId).populate('user', 'name email');
+        if (!review) {
+            return res.status(404).json({ message: 'Review not found' });
+        }
+
+        return res.json(review);
+    } catch (err) {
+        console.error('Error in GET /api/reviews/:id:', err);
+        return res.status(500).json({ message: 'Server error' });
+    }
+});
+
+// ---------------------------------------
+// 12. WISHLIST ROUTES
+// ---------------------------------------
+
+// Get user's wishlist
+app.get('/api/wishlists', protect, async (req, res) => {
+    try {
+        const wishlist = await Wishlist.findOne({ user: req.user._id })
+            .populate('items.product', 'name price images seller')
+            .populate('items.product.seller', 'name');
+
+        if (!wishlist) {
+            return res.json({ items: [] });
+        }
+
+        return res.json(wishlist);
+    } catch (error) {
+        console.error('Error fetching wishlist:', error);
+        return res.status(500).json({ message: 'Failed to fetch wishlist' });
+    }
+});
+
+// Add/remove product from wishlist
+app.post('/api/wishlists/product/:productId', protect, async (req, res) => {
+    try {
+        const { productId } = req.params;
+        const userId = req.user._id;
+
+        if (!mongoose.Types.ObjectId.isValid(productId)) {
+            return res.status(400).json({ message: 'Invalid product ID' });
+        }
+
+        const product = await Product.findById(productId);
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        let wishlist = await Wishlist.findOne({ user: userId });
+        
+        if (!wishlist) {
+            wishlist = new Wishlist({ user: userId, items: [] });
+        }
+
+        const existingItem = wishlist.items.find(item => 
+            item.product.toString() === productId
+        );
+
+        if (existingItem) {
+            wishlist.items = wishlist.items.filter(item => 
+                item.product.toString() !== productId
+            );
+            await wishlist.save();
+            return res.json({ message: 'Removed from wishlist', inWishlist: false });
+        } else {
+            wishlist.items.push({ product: productId });
+            await wishlist.save();
+            return res.json({ message: 'Added to wishlist', inWishlist: true });
+        }
+    } catch (error) {
+        console.error('Error updating wishlist:', error);
+        return res.status(500).json({ message: 'Failed to update wishlist' });
+    }
+});
 
 // ---------------------------------------
 // 13. VERTEX AI RECOMMENDATION ROUTES
