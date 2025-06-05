@@ -3,10 +3,10 @@ import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react
 import { Search, Heart, ShoppingCart, Star, Leaf, Recycle, Users, Award, ArrowRight, Menu, X, User, LogOut } from 'lucide-react';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { AuthProvider, useAuth } from './pages/AuthContext';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import Dashboard from './pages/Dashboard';
-import ProductListingManager from './pages/ProductListingManager';
+import Login from './Login';
+import Signup from './Signup';
+import Dashboard from './Dashboard';
+import ProductListingManager from './ProductListingManager';
 import CartPage from './pages/CartPage';
 const API_BASE_URL = 'http://localhost:5000/api';
 

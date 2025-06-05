@@ -43,10 +43,10 @@ const userSchema = new Schema(
         isVerified: { type: Boolean, default: false },
         images:
         {
-            url: { type: String, required: true },               // e.g., https://storage.googleapis.com/my-bucket/image.jpg
-            gcpStoragePath: { type: String, required: true },     // e.g., my-bucket/images/product1234.jpg
+            url: { type: String},               // e.g., https://storage.googleapis.com/my-bucket/image.jpg
+            gcpStoragePath: { type: String },     // e.g., my-bucket/images/product1234.jpg
             altText: { type: String },                            // For accessibility/SEO
-            isPrimary: { type: Boolean, default: false },         // Flag the main display image
+            isPrimary: { type: Boolean },         // Flag the main display image
         },
     },
     { timestamps: true }
