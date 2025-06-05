@@ -771,22 +771,6 @@ app.delete('/api/products/:id', protect, async (req, res) => {
     }
 });
 
-// Get user's own listings
-app.get('/api/products/my-listings', protect, async (req, res) => {
-  try {
-    const products = await Product.find({ seller: req.user._id })
-      .populate('seller', 'name email images')
-      .sort({ createdAt: -1 });
-
-    return res.json({
-      products,
-      total: products.length
-    });
-  } catch (error) {
-    console.error('Error fetching user listings:', error);
-    return res.status(500).json({ message: 'Failed to fetch listings' });
-  }
-});
 
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 

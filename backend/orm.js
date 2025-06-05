@@ -372,17 +372,34 @@ const auctionBidSchema = new mongoose.Schema(
 
 const auctionSchema = new mongoose.Schema(
   {
-    product: { type: mongoose.Types.ObjectId, ref: 'Product', required: true },
+    title: { type: String, required: true, trim: true },
+    description: { type: String, required: true, trim: true },
+    startingBid: { type: Number, required: true, min: 0 },
+    currentBid: { type: Number, required: true, min: 0 },
+    reservePrice: { type: Number, min: 0 },
+    endDate: { type: Date, required: true },
+    category: { type: String, required: true },
+    condition: { type: String, required: true },
+    images: [
+      {
+        url: { type: String, required: true },
+        gcpStoragePath: { type: String, required: true },
+        altText: { type: String },
+        isPrimary: { type: Boolean, default: false },
+      },
+    ],
     seller: { type: mongoose.Types.ObjectId, ref: 'User', required: true },
-    startPrice: { type: Number, required: true, min: 0 },
-    currentPrice: { type: Number, required: true, min: 0 },
-    bids: [auctionBidSchema],
-    startTime: { type: Date, required: true },
-    endTime: { type: Date, required: true },
+    bids: [
+      {
+        bidder: { type: mongoose.Types.ObjectId, ref: 'User', required: true },
+        amount: { type: Number, required: true, min: 0 },
+        timestamp: { type: Date, default: Date.now },
+      }
+    ],
     status: {
       type: String,
-      enum: ['upcoming', 'live', 'ended', 'cancelled'],
-      default: 'upcoming',
+      enum: ['active', 'ended', 'cancelled'],
+      default: 'active',
     },
   },
   { timestamps: true }
