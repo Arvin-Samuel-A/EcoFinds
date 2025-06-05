@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import './Dashboard.css';
-
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');

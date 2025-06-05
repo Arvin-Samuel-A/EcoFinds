@@ -1,5 +1,5 @@
 // Product Card Component
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {  MessageCircle, Plus, Minus, Trash2, Clock, } from 'lucide-react';
 const ProductCard = ({ product, onQuantityChange, onRemove, onChat, isPurchased = false }) => {
   const [imageLoaded, setImageLoaded] = useState(false);
