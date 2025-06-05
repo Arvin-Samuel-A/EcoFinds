@@ -21,6 +21,8 @@ import {
 import { useAuth } from './AuthContext';
 import { Link } from 'react-router-dom';
 import './Dashboard.css';
+import UserProfileReviews from './UserProfileReviews';
+
 const Dashboard = () => {
   const { user, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
@@ -33,6 +35,7 @@ const Dashboard = () => {
     messages: [],
     reviews: []
   });
+  const [reviewsSubTab, setReviewsSubTab] = useState('received');
 
   useEffect(() => {
     if (user) {
@@ -464,33 +467,54 @@ const Dashboard = () => {
                 {/* Reviews Tab */}
                 {activeTab === 'reviews' && (
                   <div>
-                    <h5 className="card-title mb-4">Reviews</h5>
-                    <div className="row">
-                      {dashboardData.reviews.map(review => (
-                        <div key={review.id} className="col-12 mb-3">
-                          <div className="card">
-                            <div className="card-body">
-                              <div className="d-flex justify-content-between align-items-start">
-                                <div>
-                                  <div className="d-flex align-items-center mb-2">
-                                    {[...Array(5)].map((_, i) => (
-                                      <Star 
-                                        key={i} 
-                                        size={16} 
-                                        className={i < review.rating ? 'text-warning' : 'text-muted'} 
-                                        fill={i < review.rating ? 'currentColor' : 'none'}
-                                      />
-                                    ))}
-                                  </div>
-                                  <p className="mb-1">{review.comment}</p>
-                                  <small className="text-muted">From: {review.from}</small>
-                                </div>
-                              </div>
-                            </div>
+                    <div className="mb-4">
+                      <h5 className="card-title">Your Reviews & Ratings</h5>
+                      <p className="text-muted">Manage your reviews and see what others are saying about you.</p>
+                    </div>
+                    
+                    {/* Tab Navigation for Reviews */}
+                    <ul className="nav nav-pills mb-4">
+                      <li className="nav-item">
+                        <button 
+                          className={`nav-link ${reviewsSubTab === 'received' ? 'active' : ''}`}
+                          onClick={() => setReviewsSubTab('received')}
+                        >
+                          Reviews Received
+                        </button>
+                      </li>
+                      <li className="nav-item">
+                        <button 
+                          className={`nav-link ${reviewsSubTab === 'given' ? 'active' : ''}`}
+                          onClick={() => setReviewsSubTab('given')}
+                        >
+                          Reviews Given
+                        </button>
+                      </li>
+                    </ul>
+
+                    {/* Reviews Content */}
+                    {reviewsSubTab === 'received' && (
+                      <UserProfileReviews 
+                        userId={user._id} 
+                        userType={user.role === 'seller' ? 'seller' : 'buyer'} 
+                      />
+                    )}
+
+                    {reviewsSubTab === 'given' && (
+                      <div className="card">
+                        <div className="card-body">
+                          <h6>Reviews You've Written</h6>
+                          {/* This would show reviews the user has written about others */}
+                          <div className="text-center py-4">
+                            <MessageCircle size={48} className="text-muted mb-3" />
+                            <p className="text-muted">You haven't written any reviews yet.</p>
+                            <Link to="/marketplace" className="btn btn-primary btn-sm">
+                              Shop & Review Products
+                            </Link>
                           </div>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

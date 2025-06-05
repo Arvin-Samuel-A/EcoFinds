@@ -1,0 +1,48 @@
+.reviews-component {
+  /* Custom styles for reviews */
+}
+
+.reviews-component.compact {
+  /* Compact version styles */
+}
+
+.review-card {
+  transition: all 0.2s ease;
+}
+
+.review-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.rating-stars {
+  cursor: pointer;
+}
+
+.rating-stars.interactive .star {
+  transition: color 0.2s ease;
+}
+
+.rating-stars.interactive .star:hover {
+  color: #ffc107 !important;
+}
+
+.progress {
+  background-color: #e9ecef;
+}
+
+.review-form {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+@media (max-width: 768px) {
+  .reviews-component {
+    padding: 0.5rem;
+  }
+  
+  .rating-breakdown {
+    font-size: 0.875rem;
+  }
+}

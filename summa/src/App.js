@@ -12,6 +12,8 @@ import CartPage from './CartPage';
 import Dashboard from './Dashboard';
 import ChatScreen from './ChatScreen';
 import MessagesList from './MessagesList';
+import ProductDetailPage from './ProductDetailPage';
+import ReviewsComponent from './ReviewsComponent';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -543,6 +545,7 @@ const App = () => {
           <Route path="/messages" element={<MessagesList />} />
           <Route path="/chat/:otherUserId" element={<ChatScreen />} />
           <Route path="/chat/:otherUserId/:productId" element={<ChatScreen />} />
+          <Route path="/product/:productId" element={<ProductDetailPage />} />
         </Routes>
       </Router>
     </AuthProvider>

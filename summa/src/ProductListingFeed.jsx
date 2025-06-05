@@ -20,6 +20,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { useAuth } from './AuthContext'; // Updated import path
+import ReviewsComponent from './ReviewsComponent';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -494,107 +495,148 @@ const ProductListingFeed = () => {
                   key={product._id} 
                   className={viewMode === 'grid' ? 'col-6 col-md-4 col-lg-3' : 'col-12'}
                 >
-                  {viewMode === 'grid' ? (
-                    // Grid View Card
-                    <div className="card h-100 border-0 shadow-sm" style={{ transition: 'all 0.2s' }}>
-                      <div 
-                        className="position-relative overflow-hidden"
-                        style={{ paddingTop: '75%', background: 'linear-gradient(135deg, #ede9fe, #fed7aa)' }}
-                      >
-                        {product.images && product.images.length > 0 ? (
-                          <img 
-                            src={product.images[0].url} 
-                            alt={product.images[0].altText || product.name}
-                            className="position-absolute top-0 start-0 w-100 h-100"
-                            style={{ objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <div className="position-absolute top-50 start-50 translate-middle">
-                            <div className="display-6">📦</div>
-                          </div>
-                        )}
-                        <button className="btn btn-light btn-sm position-absolute top-0 end-0 m-2 rounded-circle">
-                          <Heart size={14} />
-                        </button>
-                      </div>
-                      <div className="card-body p-3">
-                        <h6 className="card-title fw-medium mb-2 text-truncate">{product.name}</h6>
-                        <div className="d-flex justify-content-between align-items-center mb-2">
-                          <span className="h6 fw-bold mb-0" style={{ color: '#9333ea' }}>
-                            ₹{product.price?.toLocaleString()}
-                          </span>
-                          <div className="d-flex align-items-center">
-                            <Star size={12} className="text-warning me-1" fill="currentColor" />
-                            <span className="small text-muted">{product.rating || 'New'}</span>
-                          </div>
-                        </div>
-                        <div className="d-flex justify-content-between align-items-center">
-                          <small className="text-muted">by {product.seller?.name || 'Seller'}</small>
-                          <small className="text-muted d-flex align-items-center">
-                            <MapPin size={10} className="me-1" />
-                            {product.seller?.location || 'Location'}
-                          </small>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    // List View Card
-                    <div className="card border-0 shadow-sm">
-                      <div className="row g-0">
-                        <div className="col-3">
-                          <div 
-                            className="h-100 d-flex align-items-center justify-content-center"
-                            style={{ 
-                              minHeight: '120px',
-                              background: 'linear-gradient(135deg, #ede9fe, #fed7aa)' 
-                            }}
-                          >
-                            {product.images && product.images.length > 0 ? (
-                              <img 
-                                src={product.images[0].url} 
-                                alt={product.images[0].altText || product.name}
-                                className="w-100 h-100"
-                                style={{ objectFit: 'cover' }}
-                              />
-                            ) : (
+                  <Link 
+                    to={`/product/${product._id}`} 
+                    className="text-decoration-none text-dark"
+                  >
+                    {viewMode === 'grid' ? (
+                      // Grid View Card
+                      <div className="card h-100 border-0 shadow-sm" style={{ transition: 'all 0.2s' }}>
+                        <div 
+                          className="position-relative overflow-hidden"
+                          style={{ paddingTop: '75%', background: 'linear-gradient(135deg, #ede9fe, #fed7aa)' }}
+                        >
+                          {product.images && product.images.length > 0 ? (
+                            <img 
+                              src={product.images[0].url} 
+                              alt={product.images[0].altText || product.name}
+                              className="position-absolute top-0 start-0 w-100 h-100"
+                              style={{ objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <div className="position-absolute top-50 start-50 translate-middle">
                               <div className="display-6">📦</div>
-                            )}
-                          </div>
+                            </div>
+                          )}
                         </div>
-                        <div className="col-9">
-                          <div className="card-body">
-                            <div className="d-flex justify-content-between align-items-start">
-                              <div>
-                                <h6 className="card-title fw-medium mb-1">{product.name}</h6>
-                                <p className="card-text small text-muted mb-2 text-truncate">
-                                  {product.description}
-                                </p>
-                                <div className="d-flex align-items-center gap-3 mb-2">
-                                  <span className="h6 fw-bold mb-0" style={{ color: '#9333ea' }}>
-                                    ₹{product.price?.toLocaleString()}
-                                  </span>
-                                  <div className="d-flex align-items-center">
-                                    <Star size={12} className="text-warning me-1" fill="currentColor" />
-                                    <span className="small text-muted">{product.rating || 'New'}</span>
+                        <div className="card-body p-3">
+                          <h6 className="card-title fw-medium mb-2 text-truncate">{product.name}</h6>
+                          <div className="d-flex justify-content-between align-items-center mb-2">
+                            <span className="h6 fw-bold mb-0" style={{ color: '#9333ea' }}>
+                              ₹{product.price?.toLocaleString()}
+                            </span>
+                            <div className="d-flex align-items-center">
+                              <Star size={12} className="text-warning me-1" fill="currentColor" />
+                              <span className="small text-muted">
+                                {product.rating ? product.rating.toFixed(1) : 'New'}
+                                {product.numReviews > 0 && (
+                                  <span className="ms-1">({product.numReviews})</span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="d-flex justify-content-between align-items-center">
+                            <small className="text-muted">by {product.seller?.name || 'Seller'}</small>
+                            <small className="text-muted d-flex align-items-center">
+                              <MapPin size={10} className="me-1" />
+                              {product.seller?.location || 'Location'}
+                            </small>
+                          </div>
+                          
+                          {/* Add quick rating display */}
+                          {product.rating > 0 && (
+                            <div className="d-flex align-items-center mt-2">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  size={10}
+                                  className={star <= Math.round(product.rating) ? 'text-warning' : 'text-muted'}
+                                  fill={star <= Math.round(product.rating) ? 'currentColor' : 'none'}
+                                />
+                              ))}
+                              <span className="ms-1 small text-muted">
+                                ({product.numReviews} review{product.numReviews !== 1 ? 's' : ''})
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      // List View Card
+                      <div className="card border-0 shadow-sm">
+                        <div className="row g-0">
+                          <div className="col-3">
+                            <div 
+                              className="h-100 d-flex align-items-center justify-content-center"
+                              style={{ 
+                                minHeight: '120px',
+                                background: 'linear-gradient(135deg, #ede9fe, #fed7aa)' 
+                              }}
+                            >
+                              {product.images && product.images.length > 0 ? (
+                                <img 
+                                  src={product.images[0].url} 
+                                  alt={product.images[0].altText || product.name}
+                                  className="w-100 h-100"
+                                  style={{ objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <div className="display-6">📦</div>
+                              )}
+                            </div>
+                          </div>
+                          <div className="col-9">
+                            <div className="card-body">
+                              <div className="d-flex justify-content-between align-items-start">
+                                <div>
+                                  <h6 className="card-title fw-medium mb-1">{product.name}</h6>
+                                  <p className="card-text small text-muted mb-2 text-truncate">
+                                    {product.description}
+                                  </p>
+                                  <div className="d-flex align-items-center gap-3 mb-2">
+                                    <span className="h6 fw-bold mb-0" style={{ color: '#9333ea' }}>
+                                      ₹{product.price?.toLocaleString()}
+                                    </span>
+                                    <div className="d-flex align-items-center">
+                                      <Star size={12} className="text-warning me-1" fill="currentColor" />
+                                      <span className="small text-muted">{product.rating || 'New'}</span>
+                                    </div>
+                                  </div>
+                                  <div className="d-flex align-items-center gap-3">
+                                    <small className="text-muted">by {product.seller?.name || 'Seller'}</small>
+                                    <small className="text-muted d-flex align-items-center">
+                                      <Clock size={10} className="me-1" />
+                                      {new Date(product.createdAt).toLocaleDateString()}
+                                    </small>
                                   </div>
                                 </div>
-                                <div className="d-flex align-items-center gap-3">
-                                  <small className="text-muted">by {product.seller?.name || 'Seller'}</small>
-                                  <small className="text-muted d-flex align-items-center">
-                                    <Clock size={10} className="me-1" />
-                                    {new Date(product.createdAt).toLocaleDateString()}
-                                  </small>
-                                </div>
+                                <button className="btn btn-light btn-sm rounded-circle">
+                                  <Heart size={14} />
+                                </button>
                               </div>
-                              <button className="btn btn-light btn-sm rounded-circle">
-                                <Heart size={14} />
-                              </button>
+
+                              {/* Rating display for list view */}
+                              {product.rating > 0 && (
+                                <div className="d-flex align-items-center mt-2">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      size={12}
+                                      className={star <= Math.round(product.rating) ? 'text-warning' : 'text-muted'}
+                                      fill={star <= Math.round(product.rating) ? 'currentColor' : 'none'}
+                                    />
+                                  ))}
+                                  <span className="ms-2 small text-muted">
+                                    {product.rating.toFixed(1)} ({product.numReviews} review{product.numReviews !== 1 ? 's' : ''})
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </Link>
                 </div>
               )) : (
                 <div className="col-12 text-center py-5">
