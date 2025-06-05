@@ -33,13 +33,13 @@ const ProductManager = () => {
     category: '',
     description: '',
     price: '',
+    countInStock: '1',
     condition: 'good',
     isAuction: false,
     // Auction specific fields
     minimumBid: '',
     reservePrice: '',
     auctionDuration: '7', // in days
-    auctionEndDate: '',
   });
 
   const categories = [
@@ -64,6 +64,16 @@ const ProductManager = () => {
     { value: 'poor', label: 'Poor' }
   ];
 
+  // Generate slug from name
+  const generateSlug = (name) => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/[\s_-]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -71,7 +81,6 @@ const ProductManager = () => {
       [name]: type === 'checkbox' ? checked : value
     }));
     
-    // Clear error when user starts typing
     if (error) setError('');
   };
 
@@ -99,10 +108,8 @@ const ProductManager = () => {
       setError('Product description is required');
       return false;
     }
-    if (!formData.price || formData.price <= 0) {
-      setError('Please enter a valid price');
-      return false;
-    }
+    
+    // Fix validation logic for auction vs product
     if (formData.isAuction) {
       if (!formData.minimumBid || formData.minimumBid <= 0) {
         setError('Please enter a valid minimum bid price');
@@ -112,7 +119,17 @@ const ProductManager = () => {
         setError('Reserve price must be greater than minimum bid');
         return false;
       }
+    } else {
+      if (!formData.price || formData.price <= 0) {
+        setError('Please enter a valid price');
+        return false;
+      }
+      if (!formData.countInStock || formData.countInStock < 0) {
+        setError('Please enter a valid quantity');
+        return false;
+      }
     }
+    
     if (uploadedImages.length === 0) {
       setError('Please add at least one product image');
       return false;
@@ -126,6 +143,32 @@ const ProductManager = () => {
     return endDate.toISOString();
   };
 
+  const createProduct = async (productData) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/products`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(productData)
+    });
+    return response;
+  };
+
+  const createAuction = async (auctionData) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_BASE_URL}/auctions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(auctionData)
+    });
+    return response;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -135,51 +178,72 @@ const ProductManager = () => {
     setError('');
 
     try {
-      const productData = {
-        name: formData.name.trim(),
-        category: formData.category,
-        description: formData.description.trim(),
-        price: parseFloat(formData.price),
-        condition: formData.condition,
-        images: uploadedImages.map((img, index) => ({
-          url: img.url,
-          gcpStoragePath: img.gcpStoragePath,
-          altText: img.altText || formData.name,
-          isPrimary: index === 0
-        })),
-        seller: user._id,
-        // Auction fields
-        ...(formData.isAuction && {
-          isAuction: true,
-          minimumBid: parseFloat(formData.minimumBid),
+      const slug = generateSlug(formData.name);
+      
+      if (formData.isAuction) {
+        // Create auction item
+        const auctionData = {
+          title: formData.name.trim(),
+          description: formData.description.trim(),
+          startingBid: parseFloat(formData.minimumBid),
           reservePrice: formData.reservePrice ? parseFloat(formData.reservePrice) : undefined,
-          auctionEndDate: calculateAuctionEndDate(formData.auctionDuration)
-        })
-      };
+          endDate: calculateAuctionEndDate(formData.auctionDuration),
+          category: formData.category,
+          condition: formData.condition,
+          images: uploadedImages.map((img, index) => ({
+            url: img.url,
+            gcpStoragePath: img.gcpStoragePath,
+            altText: img.altText || formData.name,
+            isPrimary: index === 0
+          })),
+          seller: user._id,
+          status: 'active'
+        };
 
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/products`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(productData)
-      });
+        const response = await createAuction(auctionData);
+        const data = await response.json();
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setSuccess('Product listed successfully!');
-        setTimeout(() => {
-          navigate('/marketplace');
-        }, 2000);
+        if (response.ok) {
+          setSuccess('Auction created successfully!');
+          setTimeout(() => {
+            navigate('/my-listings');
+          }, 2000);
+        } else {
+          setError(data.message || 'Failed to create auction');
+        }
       } else {
-        setError(data.message || 'Failed to create product listing');
+        // Create regular product
+        const productData = {
+          name: formData.name.trim(),
+          slug: slug,
+          description: formData.description.trim(),
+          price: parseFloat(formData.price),
+          countInStock: parseInt(formData.countInStock),
+          categoryIds: formData.category ? [formData.category] : [],
+          images: uploadedImages.map((img, index) => ({
+            url: img.url,
+            gcpStoragePath: img.gcpStoragePath,
+            altText: img.altText || formData.name,
+            isPrimary: index === 0
+          })),
+          features: [`Condition: ${conditions.find(c => c.value === formData.condition)?.label || formData.condition}`],
+        };
+
+        const response = await createProduct(productData);
+        const data = await response.json();
+
+        if (response.ok) {
+          setSuccess('Product listed successfully!');
+          setTimeout(() => {
+            navigate('/my-listings');
+          }, 2000);
+        } else {
+          setError(data.message || 'Failed to create product listing');
+        }
       }
     } catch (error) {
-      console.error('Error creating product:', error);
-      setError('Failed to create product listing. Please try again.');
+      console.error('Error creating listing:', error);
+      setError('Failed to create listing. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -212,10 +276,10 @@ const ProductManager = () => {
               </div>
               <div>
                 <h1 className="h4 fw-bold mb-0" style={{ color: '#1e293b' }}>
-                  Add New Product
+                  {formData.isAuction ? 'Create Auction' : 'Add New Product'}
                 </h1>
                 <p className="text-muted small mb-0">
-                  Create a listing for your item
+                  {formData.isAuction ? 'Set up your auction listing' : 'Create a listing for your item'}
                 </p>
               </div>
             </div>
@@ -230,24 +294,47 @@ const ProductManager = () => {
             {/* Success Alert */}
             {success && (
               <div className="alert alert-success d-flex align-items-center mb-4" role="alert">
-                <div>
-                  <i className="bi bi-check-circle-fill me-2"></i>
-                  {success}
-                </div>
+                <div>✅ {success}</div>
               </div>
             )}
 
             {/* Error Alert */}
             {error && (
               <div className="alert alert-danger d-flex align-items-center mb-4" role="alert">
-                <div>
-                  <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                  {error}
-                </div>
+                <div>⚠️ {error}</div>
               </div>
             )}
 
             <form onSubmit={handleSubmit}>
+              {/* Listing Type Selection */}
+              <div className="card border-0 shadow-sm mb-4">
+                <div className="card-body p-4">
+                  <div className="form-check form-switch d-flex align-items-center">
+                    <input
+                      className="form-check-input me-3"
+                      type="checkbox"
+                      id="isAuction"
+                      name="isAuction"
+                      checked={formData.isAuction}
+                      onChange={handleInputChange}
+                      style={{ transform: 'scale(1.2)' }}
+                    />
+                    <div>
+                      <label className="form-check-label fw-semibold" htmlFor="isAuction">
+                        <Gavel size={20} className="me-2" style={{ color: '#9333ea' }} />
+                        {formData.isAuction ? 'Auction Listing' : 'Fixed Price Listing'}
+                      </label>
+                      <div className="small text-muted">
+                        {formData.isAuction 
+                          ? 'Let buyers compete with bids for your item'
+                          : 'Sell your item at a fixed price'
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Basic Information Card */}
               <div className="card border-0 shadow-sm mb-4">
                 <div className="card-header bg-white border-0 py-3">
@@ -260,7 +347,7 @@ const ProductManager = () => {
                   <div className="row g-3">
                     <div className="col-12">
                       <label htmlFor="name" className="form-label fw-medium">
-                        Product Title <span className="text-danger">*</span>
+                        {formData.isAuction ? 'Auction Title' : 'Product Title'} <span className="text-danger">*</span>
                       </label>
                       <div className="input-group">
                         <span className="input-group-text bg-light border-end-0">
@@ -273,7 +360,7 @@ const ProductManager = () => {
                           name="name"
                           value={formData.name}
                           onChange={handleInputChange}
-                          placeholder="Enter product title"
+                          placeholder={formData.isAuction ? "Enter auction title" : "Enter product title"}
                           required
                         />
                       </div>
@@ -334,7 +421,7 @@ const ProductManager = () => {
                           rows="4"
                           value={formData.description}
                           onChange={handleInputChange}
-                          placeholder="Describe your product in detail..."
+                          placeholder={formData.isAuction ? "Describe the item for auction..." : "Describe your product in detail..."}
                           required
                         />
                       </div>
@@ -342,63 +429,50 @@ const ProductManager = () => {
                         Include details about condition, features, and any defects
                       </div>
                     </div>
+
+                    {!formData.isAuction && (
+                      <div className="col-md-6">
+                        <label htmlFor="countInStock" className="form-label fw-medium">
+                          Quantity Available <span className="text-danger">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          className="form-control py-3"
+                          id="countInStock"
+                          name="countInStock"
+                          value={formData.countInStock}
+                          onChange={handleInputChange}
+                          placeholder="1"
+                          min="1"
+                          required
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Pricing & Auction Card */}
+              {/* Pricing Card */}
               <div className="card border-0 shadow-sm mb-4">
                 <div className="card-header bg-white border-0 py-3">
                   <div className="d-flex align-items-center">
-                    <DollarSign className="me-2" size={20} style={{ color: '#9333ea' }} />
-                    <h5 className="mb-0 fw-semibold">Pricing & Auction</h5>
+                    {formData.isAuction ? (
+                      <Gavel className="me-2" size={20} style={{ color: '#9333ea' }} />
+                    ) : (
+                      <DollarSign className="me-2" size={20} style={{ color: '#9333ea' }} />
+                    )}
+                    <h5 className="mb-0 fw-semibold">
+                      {formData.isAuction ? 'Auction Settings' : 'Pricing'}
+                    </h5>
                   </div>
                 </div>
                 <div className="card-body p-4">
                   <div className="row g-3">
-                    <div className="col-12">
-                      <div className="form-check form-switch mb-3">
-                        <input
-                          className="form-check-input"
-                          type="checkbox"
-                          id="isAuction"
-                          name="isAuction"
-                          checked={formData.isAuction}
-                          onChange={handleInputChange}
-                        />
-                        <label className="form-check-label fw-medium" htmlFor="isAuction">
-                          <Gavel size={16} className="me-2" />
-                          Make this an auction item
-                        </label>
-                      </div>
-                    </div>
-
-                    {!formData.isAuction ? (
-                      <div className="col-md-6">
-                        <label htmlFor="price" className="form-label fw-medium">
-                          Price <span className="text-danger">*</span>
-                        </label>
-                        <div className="input-group">
-                          <span className="input-group-text bg-light border-end-0">₹</span>
-                          <input
-                            type="number"
-                            className="form-control border-start-0 py-3"
-                            id="price"
-                            name="price"
-                            value={formData.price}
-                            onChange={handleInputChange}
-                            placeholder="0.00"
-                            min="0"
-                            step="0.01"
-                            required
-                          />
-                        </div>
-                      </div>
-                    ) : (
+                    {formData.isAuction ? (
                       <>
                         <div className="col-md-6">
                           <label htmlFor="minimumBid" className="form-label fw-medium">
-                            Minimum Bid Price <span className="text-danger">*</span>
+                            Starting Bid <span className="text-danger">*</span>
                           </label>
                           <div className="input-group">
                             <span className="input-group-text bg-light border-end-0">₹</span>
@@ -412,7 +486,7 @@ const ProductManager = () => {
                               placeholder="0.00"
                               min="0"
                               step="0.01"
-                              required={formData.isAuction}
+                              required
                             />
                           </div>
                         </div>
@@ -454,7 +528,7 @@ const ProductManager = () => {
                               name="auctionDuration"
                               value={formData.auctionDuration}
                               onChange={handleInputChange}
-                              required={formData.isAuction}
+                              required
                             >
                               <option value="1">1 Day</option>
                               <option value="3">3 Days</option>
@@ -465,14 +539,28 @@ const ProductManager = () => {
                             </select>
                           </div>
                         </div>
-
-                        {/* Set fixed price for auction */}
-                        <input
-                          type="hidden"
-                          name="price"
-                          value={formData.minimumBid || 0}
-                        />
                       </>
+                    ) : (
+                      <div className="col-md-6">
+                        <label htmlFor="price" className="form-label fw-medium">
+                          Price <span className="text-danger">*</span>
+                        </label>
+                        <div className="input-group">
+                          <span className="input-group-text bg-light border-end-0">₹</span>
+                          <input
+                            type="number"
+                            className="form-control border-start-0 py-3"
+                            id="price"
+                            name="price"
+                            value={formData.price}
+                            onChange={handleInputChange}
+                            placeholder="0.00"
+                            min="0"
+                            step="0.01"
+                            required
+                          />
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -483,7 +571,9 @@ const ProductManager = () => {
                 <div className="card-header bg-white border-0 py-3">
                   <div className="d-flex align-items-center">
                     <ImageIcon className="me-2" size={20} style={{ color: '#9333ea' }} />
-                    <h5 className="mb-0 fw-semibold">Product Images</h5>
+                    <h5 className="mb-0 fw-semibold">
+                      {formData.isAuction ? 'Auction Images' : 'Product Images'}
+                    </h5>
                   </div>
                 </div>
                 <div className="card-body p-4">
@@ -492,7 +582,7 @@ const ProductManager = () => {
                       <ImageUpload
                         onImageUploaded={handleImageUploaded}
                         altText={formData.name}
-                        folder="products"
+                        folder={formData.isAuction ? "auctions" : "products"}
                       />
                     </div>
 
@@ -506,7 +596,7 @@ const ProductManager = () => {
                               <div className="position-relative">
                                 <img
                                   src={image.url}
-                                  alt={`Product ${index + 1}`}
+                                  alt={`${formData.isAuction ? 'Auction' : 'Product'} ${index + 1}`}
                                   className="img-fluid rounded"
                                   style={{ height: '120px', width: '100%', objectFit: 'cover' }}
                                 />
@@ -553,12 +643,12 @@ const ProductManager = () => {
                   {loading ? (
                     <>
                       <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                      Creating Listing...
+                      {formData.isAuction ? 'Creating Auction...' : 'Creating Listing...'}
                     </>
                   ) : (
                     <>
                       <Plus size={18} className="me-2" />
-                      Submit Listing
+                      {formData.isAuction ? 'Start Auction' : 'Submit Listing'}
                     </>
                   )}
                 </button>
@@ -573,19 +663,6 @@ const ProductManager = () => {
         .form-select:focus {
           border-color: #9333ea;
           box-shadow: 0 0 0 0.2rem rgba(147, 51, 234, 0.25);
-        }
-        
-        .input-group-text {
-          border-color: #dee2e6;
-        }
-        
-        .btn:hover {
-          transform: translateY(-1px);
-          transition: all 0.2s ease;
-        }
-        
-        .card {
-          transition: all 0.2s ease;
         }
         
         .form-switch .form-check-input:checked {
