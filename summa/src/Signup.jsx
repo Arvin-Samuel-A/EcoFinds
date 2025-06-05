@@ -98,7 +98,7 @@ const Signup = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateStep()) return;
 
     const userData = {
@@ -120,7 +120,7 @@ const Signup = () => {
 
     const result = await register(userData);
     if (result.success) {
-      navigate('/');
+      navigate('/marketplace'); // Changed from '/' to '/marketplace'
     }
   };
 
@@ -289,10 +289,10 @@ const Signup = () => {
             {/* Header */}
             <div className="text-center mb-4">
               <Link to="/" className="d-flex align-items-center justify-content-center mb-3 text-decoration-none">
-                <div 
+                <div
                   className="rounded-circle d-flex align-items-center justify-content-center me-2"
                   style={{
-                    width: '48px', 
+                    width: '48px',
                     height: '48px',
                     background: 'linear-gradient(135deg, #9333ea, #f97316)'
                   }}
@@ -310,17 +310,16 @@ const Signup = () => {
               <div className="d-flex justify-content-between mb-3">
                 {steps.map((step) => (
                   <div key={step.number} className="text-center flex-fill">
-                    <div 
-                      className={`rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center ${
-                        currentStep >= step.number 
-                          ? 'text-white' 
+                    <div
+                      className={`rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center ${currentStep >= step.number
+                          ? 'text-white'
                           : 'bg-light text-muted'
-                      }`}
+                        }`}
                       style={{
                         width: '40px',
                         height: '40px',
-                        background: currentStep >= step.number 
-                          ? 'linear-gradient(135deg, #9333ea, #f97316)' 
+                        background: currentStep >= step.number
+                          ? 'linear-gradient(135deg, #9333ea, #f97316)'
                           : undefined
                       }}
                     >
@@ -337,12 +336,12 @@ const Signup = () => {
                   </div>
                 ))}
               </div>
-              
+
               {/* Progress Bar */}
               <div className="progress" style={{ height: '4px' }}>
-                <div 
+                <div
                   className="progress-bar"
-                  style={{ 
+                  style={{
                     width: `${(currentStep / steps.length) * 100}%`,
                     background: 'linear-gradient(135deg, #9333ea, #f97316)'
                   }}
@@ -390,7 +389,7 @@ const Signup = () => {
                   onClick={currentStep === 3 ? undefined : handleNext}
                   disabled={loading}
                   className="btn text-white d-flex align-items-center px-4 py-3"
-                  style={{ 
+                  style={{
                     background: 'linear-gradient(135deg, #9333ea, #f97316)',
                     border: 'none'
                   }}
@@ -412,8 +411,8 @@ const Signup = () => {
 
             {/* Back to Home */}
             <div className="text-center mt-4">
-              <Link 
-                to="/" 
+              <Link
+                to="/"
                 className="btn btn-outline-secondary"
               >
                 ← Back to Home
@@ -423,9 +422,9 @@ const Signup = () => {
         </div>
 
         {/* Right side - Visual */}
-        <div 
+        <div
           className="col-lg-6 d-none d-lg-flex align-items-center justify-content-center text-white position-relative"
-          style={{ 
+          style={{
             background: 'linear-gradient(135deg, #9333ea, #f97316)',
             minHeight: '100vh'
           }}
@@ -436,10 +435,10 @@ const Signup = () => {
               Start Your Eco Journey
             </h2>
             <p className="fs-5 mb-4" style={{ opacity: 0.9 }}>
-              Join thousands of eco-conscious users making a difference through sustainable shopping. 
+              Join thousands of eco-conscious users making a difference through sustainable shopping.
               Every purchase contributes to a greener planet.
             </p>
-            
+
             {/* Stats */}
             <div className="row text-center mt-5">
               <div className="col-4">
@@ -458,7 +457,7 @@ const Signup = () => {
           </div>
 
           {/* Decorative Elements */}
-          <div 
+          <div
             className="position-absolute"
             style={{
               top: '15%',
@@ -470,7 +469,7 @@ const Signup = () => {
               animation: 'float 6s ease-in-out infinite'
             }}
           ></div>
-          <div 
+          <div
             className="position-absolute"
             style={{
               bottom: '25%',
@@ -482,7 +481,7 @@ const Signup = () => {
               animation: 'float 8s ease-in-out infinite reverse'
             }}
           ></div>
-          <div 
+          <div
             className="position-absolute"
             style={{
               top: '60%',

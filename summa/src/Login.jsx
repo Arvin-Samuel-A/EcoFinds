@@ -25,7 +25,7 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.email || !formData.password) {
       setError('Please fill in all fields');
       return;
@@ -33,9 +33,10 @@ const Login = () => {
 
     const result = await login(formData.email, formData.password);
     if (result.success) {
-      navigate('/');
+      navigate('/marketplace'); // Changed from '/' to '/marketplace'
     }
   };
+
 
   return (
     <div className="container-fluid p-0">
@@ -46,10 +47,10 @@ const Login = () => {
             {/* Header */}
             <div className="text-center mb-4">
               <Link to="/" className="d-flex align-items-center justify-content-center mb-3 text-decoration-none">
-                <div 
+                <div
                   className="rounded-circle d-flex align-items-center justify-content-center me-2"
                   style={{
-                    width: '48px', 
+                    width: '48px',
                     height: '48px',
                     background: 'linear-gradient(135deg, #9333ea, #f97316)'
                   }}
@@ -126,7 +127,7 @@ const Login = () => {
                 type="submit"
                 disabled={loading}
                 className="btn text-white w-100 py-3 fw-semibold rounded-3 mb-3"
-                style={{ 
+                style={{
                   background: 'linear-gradient(135deg, #9333ea, #f97316)',
                   border: 'none'
                 }}
@@ -154,8 +155,8 @@ const Login = () => {
 
             {/* Back to Home */}
             <div className="text-center mt-4">
-              <Link 
-                to="/" 
+              <Link
+                to="/"
                 className="btn btn-outline-secondary"
               >
                 ← Back to Home
@@ -165,7 +166,7 @@ const Login = () => {
             {/* Divider */}
             <div className="position-relative my-4">
               <hr className="text-muted" />
-              <span 
+              <span
                 className="position-absolute top-50 start-50 translate-middle bg-white px-3 text-muted small"
               >
                 or continue with
@@ -174,8 +175,8 @@ const Login = () => {
 
             {/* Social Login Placeholder */}
             <div className="d-grid gap-2">
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn btn-outline-secondary py-3 fw-medium"
                 disabled
               >
@@ -187,9 +188,9 @@ const Login = () => {
         </div>
 
         {/* Right side - Visual */}
-        <div 
+        <div
           className="col-lg-6 d-none d-lg-flex align-items-center justify-content-center text-white position-relative"
-          style={{ 
+          style={{
             background: 'linear-gradient(135deg, #9333ea, #f97316)',
             minHeight: '100vh'
           }}
@@ -200,10 +201,10 @@ const Login = () => {
               Join the Sustainable Revolution
             </h2>
             <p className="fs-5 mb-4" style={{ opacity: 0.9 }}>
-              Discover unique treasures while making a positive impact on the environment. 
+              Discover unique treasures while making a positive impact on the environment.
               Every purchase helps build a more sustainable future.
             </p>
-            
+
             {/* Stats */}
             <div className="row text-center mt-5">
               <div className="col-4">
@@ -222,7 +223,7 @@ const Login = () => {
           </div>
 
           {/* Decorative Elements */}
-          <div 
+          <div
             className="position-absolute"
             style={{
               top: '10%',
@@ -234,7 +235,7 @@ const Login = () => {
               animation: 'float 6s ease-in-out infinite'
             }}
           ></div>
-          <div 
+          <div
             className="position-absolute"
             style={{
               bottom: '20%',

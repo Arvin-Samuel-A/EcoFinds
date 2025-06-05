@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { Search, Heart, ShoppingCart, Star, Leaf, Recycle, Users, Award, ArrowRight, Menu, X, User, LogOut } from 'lucide-react';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { AuthProvider, useAuth } from './pages/AuthContext';
+import { AuthProvider, useAuth } from './AuthContext'; // Updated import path
 import Login from './Login';
 import Signup from './Signup';
-import Dashboard from './Dashboard';
-import ProductListingManager from './ProductListingManager';
-import CartPage from './pages/CartPage';
+import ProductListingFeed from './ProductListingFeed';
+import ProductManager from './ProjectManager'; // Updated to match your file name
+import MyListings from './MyListings';
+
 const API_BASE_URL = 'http://localhost:5000/api';
 
 // Main Home Component
@@ -112,10 +113,10 @@ const Home = () => {
           <div className="collapse navbar-collapse">
             <ul className="navbar-nav me-auto mb-2 mb-lg-0">
               <li className="nav-item me-4">
-                <button className="btn nav-link fw-medium text-dark">Browse</button>
+                <Link to="/marketplace" className="nav-link fw-medium text-dark text-decoration-none">Browse</Link>
               </li>
               <li className="nav-item me-4">
-                <button className="btn nav-link fw-medium text-dark">Sell</button>
+                <Link to="/productmanager" className="nav-link fw-medium text-dark text-decoration-none">Sell</Link>
               </li>
               <li className="nav-item me-4">
                 <button className="btn nav-link fw-medium text-dark">About</button>
@@ -182,8 +183,8 @@ const Home = () => {
           <div className="container-xl d-lg-none">
             <div className="border-top pt-3 mt-3">
               <div className="d-flex flex-column gap-2">
-                <button className="btn text-start">Browse</button>
-                <button className="btn text-start">Sell</button>
+                <Link to="/marketplace" className="btn text-start text-decoration-none">Browse</Link>
+                <Link to="/productmanager" className="btn text-start text-decoration-none">Sell</Link>
                 <button className="btn text-start">About</button>
                 <button className="btn text-start">Contact</button>
                 
@@ -263,17 +264,16 @@ const Home = () => {
 
               {/* CTA Buttons */}
               <div className="d-flex flex-column flex-sm-row gap-3">
-                <button 
-                  onClick={() => fetchProducts()}
-                  className="btn gradient-btn text-white px-4 py-3 rounded-4 fw-semibold d-flex align-items-center justify-content-center"
+                <Link
+                  to="/marketplace"
+                  className="btn gradient-btn text-white px-4 py-3 rounded-4 fw-semibold d-flex align-items-center justify-content-center text-decoration-none"
                 >
                   <span className="me-2">Start Shopping</span>
                   <ArrowRight size={20} />
-                </button>
-                 <Link to="/productmanager" className="btn btn-outline-primary px-4 py-3 rounded-4 fw-semibold">
+                </Link>
+                <Link to="/productmanager" className="btn btn-outline-primary px-4 py-3 rounded-4 fw-semibold text-decoration-none">
                   List Your Items 
                 </Link>
-                
               </div>
             </div>
 
@@ -342,7 +342,7 @@ const Home = () => {
             {defaultCategories.map((category, index) => (
               <div key={index} className="col-6 col-md-4 col-lg-2">
                 <div 
-                  onClick={() => fetchProducts('', category.name)}
+                  onClick={() => navigate('/marketplace')}
                   className="card h-100 text-center border-0 shadow-sm card-hover"
                   style={{cursor: 'pointer'}}
                 >
@@ -421,6 +421,16 @@ const Home = () => {
               )}
             </div>
           )}
+
+          {/* View All Products Button */}
+          <div className="text-center mt-5">
+            <Link 
+              to="/marketplace"
+              className="btn btn-outline-primary px-5 py-3 rounded-4 fw-semibold text-decoration-none"
+            >
+              View All Products
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -436,14 +446,14 @@ const Home = () => {
                 Join thousands of eco-conscious users who are transforming the way we shop and sell
               </p>
               <div className="d-flex flex-column flex-sm-row gap-3 justify-content-center">
-                <button 
-                  onClick={() => fetchProducts()}
-                  className="btn btn-light text-primary px-4 py-3 rounded-4 fw-semibold"
+                <Link
+                  to="/marketplace"
+                  className="btn btn-light text-primary px-4 py-3 rounded-4 fw-semibold text-decoration-none"
                 >
                   Start Shopping Now
-                </button>
+                </Link>
                 <Link 
-                  to={user ? "#" : "/signup"}
+                  to={user ? "/productmanager" : "/signup"}
                   className="btn btn-outline-light px-4 py-3 rounded-4 fw-semibold text-decoration-none"
                 >
                   {user && user.role === 'seller' ? 'Add Product' : 'Become a Seller'}
@@ -474,8 +484,8 @@ const Home = () => {
             <div className="col-md-3">
               <h6 className="fw-semibold mb-3">Marketplace</h6>
               <div className="d-flex flex-column gap-2">
-                <button className="btn btn-link text-muted text-start p-0">Browse Items</button>
-                <button className="btn btn-link text-muted text-start p-0">Sell Items</button>
+                <Link to="/marketplace" className="btn btn-link text-muted text-start p-0 text-decoration-none">Browse Items</Link>
+                <Link to="/productmanager" className="btn btn-link text-muted text-start p-0 text-decoration-none">Sell Items</Link>
                 <button className="btn btn-link text-muted text-start p-0">Categories</button>
                 <button className="btn btn-link text-muted text-start p-0">Featured</button>
               </div>
@@ -521,9 +531,10 @@ const App = () => {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/productmanager" element={<ProductListingManager />} />
-          <Route path="/cart" element={<CartPage />} />
+          <Route path="/marketplace" element={<ProductListingFeed />} />
+          <Route path="/productmanager" element={<ProductManager />} />
+          <Route path="/productmanager/:id" element={<ProductManager />} />
+          <Route path="/my-listings" element={<MyListings />} />
         </Routes>
       </Router>
     </AuthProvider>
