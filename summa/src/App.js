@@ -6,8 +6,9 @@ import { AuthProvider, useAuth } from './AuthContext'; // Updated import path
 import Login from './Login';
 import Signup from './Signup';
 import ProductListingFeed from './ProductListingFeed';
-import ProductManager from './ProjectManager'; // Updated to match your file name
+import ProductManager from './ProductManager'; // Updated to match your file name
 import MyListings from './MyListings';
+import CartPage from './CartPage';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -535,6 +536,7 @@ const App = () => {
           <Route path="/productmanager" element={<ProductManager />} />
           <Route path="/productmanager/:id" element={<ProductManager />} />
           <Route path="/my-listings" element={<MyListings />} />
+          <Route path="/cart" element={<CartPage />} />
         </Routes>
       </Router>
     </AuthProvider>

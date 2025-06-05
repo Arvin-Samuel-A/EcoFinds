@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { ShoppingCart, MessageCircle, Plus, Minus, Trash2, Clock, X, Send, User } from 'lucide-react';
-import ProductCard from '../components/ProductCard';
-import ChatInterface from '../components/ChatInterface';
+import ProductCard from './components/ProductCard';
+import ChatInterface from './components/ChatInterface';
 
 // Helper to get auth token (adjust as needed for your auth flow)
 const getAuthHeaders = () => {
