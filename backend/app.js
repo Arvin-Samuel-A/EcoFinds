@@ -590,6 +590,54 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
+app.get('/api/products/my-listings', protect, async (req, res) => {
+  try {
+    const products = await Product.find({ seller: req.user._id })
+      .populate('seller', 'name email images')
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      products,
+      total: products.length
+    });
+  } catch (error) {
+    console.error('Error fetching user listings:', error);
+    return res.status(500).json({ message: 'Failed to fetch listings' });
+  }
+});
+
+// Delete product
+app.delete('/api/products/:id', protect, async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Check if user owns this product or is admin
+    if (product.seller.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized to delete this product' });
+    }
+
+    // Delete images from GCP if they exist
+    if (product.images && product.images.length > 0) {
+      for (const image of product.images) {
+        if (image.gcpStoragePath) {
+          await deleteFromGCP(image.gcpStoragePath);
+        }
+      }
+    }
+
+    await Product.findByIdAndDelete(req.params.id);
+
+    return res.json({ message: 'Product deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting product:', error);
+    return res.status(500).json({ message: 'Failed to delete product' });
+  }
+});
+
 // ---------------------------------------
 // 3. Route: GET /api/products/:id
 //    - Retrieve a single product by its ID
@@ -694,24 +742,51 @@ app.put('/api/products/:id', protect, async (req, res) => {
 // ---------------------------------------
 app.delete('/api/products/:id', protect, async (req, res) => {
     try {
-        const user = req.user;
         const product = await Product.findById(req.params.id);
+        
         if (!product) {
             return res.status(404).json({ message: 'Product not found' });
         }
-        // Only seller who created the product or admin can delete
-        if (product.seller.toString() !== user._id.toString() && user.role !== 'admin') {
-            return res.status(403).json({ message: 'Access denied: Not authorized to delete this product' });
+
+        // Check if user owns this product or is admin
+        if (product.seller.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+            return res.status(403).json({ message: 'Not authorized to delete this product' });
         }
 
-        await product.remove();
-        return res.json({ message: 'Product removed' });
-    } catch (err) {
-        console.error('Error in DELETE /api/products/:id:', err);
-        return res.status(500).json({ message: 'Server error' });
+        // Delete images from GCP if they exist
+        if (product.images && product.images.length > 0) {
+            for (const image of product.images) {
+                if (image.gcpStoragePath) {
+                    await deleteFromGCP(image.gcpStoragePath);
+                }
+            }
+        }
+
+        await Product.findByIdAndDelete(req.params.id);
+
+        return res.json({ message: 'Product deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting product:', error);
+        return res.status(500).json({ message: 'Failed to delete product' });
     }
 });
 
+// Get user's own listings
+app.get('/api/products/my-listings', protect, async (req, res) => {
+  try {
+    const products = await Product.find({ seller: req.user._id })
+      .populate('seller', 'name email images')
+      .sort({ createdAt: -1 });
+
+    return res.json({
+      products,
+      total: products.length
+    });
+  } catch (error) {
+    console.error('Error fetching user listings:', error);
+    return res.status(500).json({ message: 'Failed to fetch listings' });
+  }
+});
 
 const isValidId = (id) => mongoose.Types.ObjectId.isValid(id);
 
@@ -2041,6 +2116,8 @@ app.get('/api/reviews/:id', async (req, res) => {
         }
         const review = await Review.findById(reviewId).populate('user', 'name email');
         if (!review) {
+           
+           
             return res.status(404).json({ message: 'Review not found' });
         }
 
@@ -2391,6 +2468,7 @@ app.patch('/api/admin/tickets/:ticketId/status', protect, adminOnly, async (req,
         return res.status(500).json({ message: 'Server error' });
     }
 });
+
 
 
 // ---------------------------------------
