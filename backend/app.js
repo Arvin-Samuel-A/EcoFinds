@@ -1,5 +1,5 @@
 // app.js
-// Express application for “User Accounts & Profile Management”
+// Express application for "User Accounts & Profile Management"
 // Using ES Module syntax
 
 import express from 'express';
@@ -7,6 +7,45 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import cors from 'cors';
+import http from 'http';
+import { Server } from 'socket.io';
+
+const app = express();
+
+// Load environment variables FIRST
+dotenv.config();
+
+// Validate critical environment variables
+const requiredEnvVars = [
+    'MONGO_URI',
+    'JWT_SECRET',
+    'GCP_PROJECT_ID',
+    'GCP_STORAGE_BUCKET_NAME',
+    'GOOGLE_APPLICATION_CREDENTIALS'
+];
+
+for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+        console.error(`❌ Missing required environment variable: ${envVar}`);
+        process.exit(1);
+    }
+}
+
+// Import GCP storage after env validation
+let upload, uploadToGCP, deleteFromGCP;
+try {
+    const gcpStorage = await import('./gcp-storage.js');
+    upload = gcpStorage.upload;
+    uploadToGCP = gcpStorage.uploadToGCP;
+    deleteFromGCP = gcpStorage.deleteFromGCP;
+    console.log('✅ GCP Storage module loaded successfully');
+} catch (error) {
+    console.error('❌ Failed to load GCP Storage module:', error.message);
+    process.exit(1);
+}
+
+// Import ORM models
 import {
     User,
     Category,
@@ -25,17 +64,13 @@ import {
     Auction
 } from './orm.js';
 
-import cors from 'cors';
-import { upload, uploadToGCP, deleteFromGCP } from './gcp-storage.js';
 import { PredictionServiceClient } from '@google-cloud/aiplatform';
-import http from 'http';
-import { Server } from 'socket.io';
 
-dotenv.config();
-
-// Add CORS middleware after dotenv.config()
+// Add CORS middleware
 app.use(cors());
 app.use(express.json());
+
+// ... rest of your app.js code
 
 
 // ---------------------------------------
